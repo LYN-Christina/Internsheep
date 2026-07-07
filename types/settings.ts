@@ -16,3 +16,14 @@ export interface Settings {
     length: number;
   };
 }
+
+export interface UsageRecord {
+  taskExtraction: {
+    date: string;
+    count: number;
+  };
+  weeklyReport: {
+    weekStart: string;
+    count: number;
+  };
+}

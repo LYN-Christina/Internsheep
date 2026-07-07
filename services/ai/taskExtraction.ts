@@ -146,6 +146,7 @@ export function parseExtractionResult(params: {
 
 export async function extractTasksWithProvider(params: {
   apiKey: string;
+  model?: string;
   provider: AIProvider;
   role: Role;
   text: string;
@@ -159,6 +160,7 @@ export async function extractTasksWithProvider(params: {
   const content = await callAIProvider({
     apiKey: params.apiKey,
     messages: buildExtractTasksMessages({ role: params.role, text }),
+    model: params.model,
     provider: params.provider,
   });
 
@@ -178,10 +180,13 @@ export async function extractTasksFromText(params: {
 
   const response = await fetch("/api/ai/extract-tasks", {
     body: JSON.stringify({
-      apiKey: params.settings.apiKey,
+      apiKey: params.settings.apiKey || undefined,
+      mode: params.settings.apiKey.trim() ? "user-key" : "free",
+      payload: {
+        role: params.role,
+        text,
+      },
       provider: params.settings.apiProvider,
-      role: params.role,
-      text,
     }),
     headers: { "Content-Type": "application/json" },
     method: "POST",

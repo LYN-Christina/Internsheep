@@ -16,6 +16,8 @@ export function SettingsPageV2({
   onLengthChange,
   onProviderChange,
   onToneChange,
+  remainingTaskExtraction,
+  remainingWeeklyReport,
   settings,
 }: SettingsPageProps) {
   const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
@@ -24,6 +26,7 @@ export function SettingsPageV2({
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const hasApiKey = Boolean(settings.apiKey.trim());
   const providerMeta = getProviderMeta(settings.apiProvider);
+  const currentMode = hasApiKey ? "自用 API Key" : "免费体验";
 
   async function handleTestConnection() {
     setConnectionMessage(null);
@@ -51,6 +54,21 @@ export function SettingsPageV2({
       <div className="flex items-center gap-2">
         <Settings2 aria-hidden="true" className="size-5" />
         <h1 className="text-2xl font-semibold">我的设置</h1>
+      </div>
+
+      <div className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+        <p className="font-medium text-[var(--foreground)]">
+          当前模式：{currentMode}
+        </p>
+        <p className="mt-1">
+          你可以直接使用免费体验额度，也可以配置自己的 API Key 解除次数限制。
+        </p>
+        <p className="mt-1">
+          如果你使用免费体验额度，AI 请求将通过服务端代理完成；如果你配置自己的 API Key，将优先使用你的 Key。
+        </p>
+        <p className="mt-1">
+          免费体验额度：录音纪要每天 2 次，今日剩余 {remainingTaskExtraction} 次；本周周报每周 2 次，本周剩余 {remainingWeeklyReport} 次。
+        </p>
       </div>
 
       <label className="mt-4 flex flex-col gap-2 text-sm font-medium">
@@ -99,7 +117,7 @@ export function SettingsPageV2({
       </label>
       {!hasApiKey ? (
         <p className="mt-2 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
-          尚未配置 API Key。配置后才能使用 AI 提取任务和生成周报。
+          尚未配置 API Key。你仍可使用免费体验额度；配置后会优先使用自己的 API Key，且不受免费次数限制。
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -149,7 +167,10 @@ export function SettingsPageV2({
       <div className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
         <p className="font-medium text-[var(--foreground)]">隐私说明</p>
         <p className="mt-1">
-          API Key、任务和报告都只存储在当前浏览器 localStorage，不上传到产品服务器。录音转文字使用浏览器能力。
+          自用 API Key、任务和报告都只存储在当前浏览器 localStorage。调用 AI 时，自用 API Key 只会发送到本站后端 API route 代理请求，不会写入前端代码或 GitHub。录音转文字使用浏览器能力。
+        </p>
+        <p className="mt-1">
+          清除浏览器缓存可能导致数据丢失，换设备后数据不会自动同步。建议定期导出数据或导出 Markdown 备份重要周报。
         </p>
       </div>
 

@@ -7,12 +7,14 @@ import type { WeeklyReportPageProps } from "@/lib/page-types";
 export function WeeklyReportPageV2({
   isGeneratingReport,
   isWeeklyReportSaved,
+  isUsingUserApiKey,
   onCopyWeeklyReport,
   onExportMarkdown,
   onGenerateWeeklyReport,
   onSaveWeeklyReport,
   onWeeklyContentChange,
   role,
+  remainingWeeklyReport,
   weekEnd,
   weekStart,
   weeklyContent,
@@ -21,6 +23,11 @@ export function WeeklyReportPageV2({
 }: WeeklyReportPageProps) {
   const completed = weekTasks.filter((task) => task.status === "done").length;
   const unfinished = weekTasks.length - completed;
+  const usageMessage = isUsingUserApiKey
+    ? "当前使用自用 API Key，不占用免费体验额度。"
+    : remainingWeeklyReport > 0
+      ? `免费体验：本周还可生成周报 ${remainingWeeklyReport} 次。`
+      : "本周免费周报生成次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。";
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-white p-4">
@@ -48,6 +55,10 @@ export function WeeklyReportPageV2({
           <p className="mt-1 text-2xl font-semibold">{unfinished}</p>
         </div>
       </div>
+
+      <p className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+        {usageMessage}
+      </p>
 
       {weekTasks.length ? null : (
         <div className="mt-4">

@@ -32,6 +32,8 @@ export interface RecordingNotesPageProps {
   isRecording: boolean;
   recordingElapsedSeconds: number;
   recordingNotice: string | null;
+  isUsingUserApiKey: boolean;
+  remainingTaskExtraction: number;
   onCancelRecording: () => void;
   onAddDraftTask: () => void;
   onInputTextChange: (value: string) => void;
@@ -55,6 +57,8 @@ export interface WeeklyReportPageProps {
   weeklyContent: string;
   isGeneratingReport: boolean;
   isWeeklyReportSaved: boolean;
+  isUsingUserApiKey: boolean;
+  remainingWeeklyReport: number;
   weeklyReportNotice: string | null;
   onGenerateWeeklyReport: () => void;
   onWeeklyContentChange: (content: string) => void;
@@ -65,6 +69,8 @@ export interface WeeklyReportPageProps {
 
 export interface SettingsPageProps {
   settings: Settings;
+  remainingTaskExtraction: number;
+  remainingWeeklyReport: number;
   onProviderChange: (provider: ApiProvider) => void;
   onApiKeyChange: (apiKey: string) => void;
   onToneChange: (tone: number) => void;

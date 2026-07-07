@@ -6,6 +6,7 @@ export const storageKeys = {
   internTasks: "internsheep:tasks:intern",
   studentTasks: "internsheep:tasks:student",
   reports: "internsheep:reports",
+  usage: "internsheep:usage",
 } as const;
 
 export function getTaskStorageKey(role: UserRole) {

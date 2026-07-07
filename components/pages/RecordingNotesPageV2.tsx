@@ -16,6 +16,7 @@ export function RecordingNotesPageV2({
   inputText,
   isExtracting,
   isRecording,
+  isUsingUserApiKey,
   onAddDraftTask,
   onCancelRecording,
   onExtract,
@@ -25,8 +26,15 @@ export function RecordingNotesPageV2({
   onUpdateDraft,
   recordingElapsedSeconds,
   recordingNotice,
+  remainingTaskExtraction,
   role,
 }: RecordingNotesPageProps) {
+  const usageMessage = isUsingUserApiKey
+    ? "当前使用自用 API Key，不占用免费体验额度。"
+    : remainingTaskExtraction > 0
+      ? `免费体验：今日还可 AI 提取 ${remainingTaskExtraction} 次。`
+      : "今日免费 AI 提取次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。";
+
   return (
     <div className="flex flex-col gap-4">
       <section className="rounded-lg border border-[var(--border)] bg-white p-4">
@@ -75,6 +83,9 @@ export function RecordingNotesPageV2({
         </div>
         <p className="mt-3 text-sm text-[var(--muted-foreground)]">
           录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 30:00
+        </p>
+        <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+          {usageMessage}
         </p>
         {recordingNotice ? (
           <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">

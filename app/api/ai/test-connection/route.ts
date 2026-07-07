@@ -5,10 +5,12 @@ import {
   serializeAIError,
   type ChatMessage,
 } from "@/services/ai/providerRuntime";
+import { resolveAIRequest, type AIRequestEnvelope } from "@/services/ai/serverConfig";
 import type { AIProvider } from "@/types";
 
 interface TestConnectionRequest {
   apiKey?: string;
+  mode?: "free" | "user-key";
   provider?: AIProvider;
 }
 
@@ -25,12 +27,15 @@ const testMessages: ChatMessage[] = [
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as TestConnectionRequest;
+    const body = (await request.json()) as AIRequestEnvelope<Record<string, never>> &
+      TestConnectionRequest;
+    const resolved = resolveAIRequest(body, {});
 
     await callAIProvider({
-      apiKey: body.apiKey ?? "",
+      apiKey: resolved.apiKey,
       messages: testMessages,
-      provider: body.provider ?? "openai",
+      model: resolved.model,
+      provider: resolved.provider,
       timeoutMs: 20000,
     });
 

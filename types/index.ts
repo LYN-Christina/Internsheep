@@ -9,4 +9,4 @@ export type {
   UserRole,
 } from "@/types/task";
 export type { Report, WeeklyTemplateId } from "@/types/report";
-export type { AIProvider, ApiProvider, Settings } from "@/types/settings";
+export type { AIProvider, ApiProvider, Settings, UsageRecord } from "@/types/settings";

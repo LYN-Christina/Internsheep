@@ -14,6 +14,7 @@ export interface GenerateWeeklyReportInput {
   lengthValue: number;
   apiProvider: AIProvider;
   apiKey: string;
+  model?: string;
 }
 
 function buildWeeklyReportMessages(input: GenerateWeeklyReportInput): ChatMessage[] {
@@ -77,6 +78,7 @@ export async function generateWeeklyReportWithProvider(
   const content = await callAIProvider({
     apiKey: input.apiKey,
     messages: buildWeeklyReportMessages(input),
+    model: input.model,
     provider: input.apiProvider,
   });
 
@@ -92,7 +94,19 @@ export async function generateWeeklyReport(input: GenerateWeeklyReportInput) {
   }
 
   const response = await fetch("/api/ai/generate-weekly-report", {
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      apiKey: input.apiKey || undefined,
+      mode: input.apiKey.trim() ? "user-key" : "free",
+      payload: {
+        endDate: input.endDate,
+        lengthValue: input.lengthValue,
+        role: input.role,
+        startDate: input.startDate,
+        tasks: input.tasks,
+        toneValue: input.toneValue,
+      },
+      provider: input.apiProvider,
+    }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });

@@ -6,7 +6,11 @@ export async function testAIConnection(params: {
   provider: AIProvider;
 }) {
   const response = await fetch("/api/ai/test-connection", {
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      apiKey: params.apiKey,
+      mode: "user-key",
+      provider: params.provider,
+    }),
     headers: { "Content-Type": "application/json" },
     method: "POST",
   });

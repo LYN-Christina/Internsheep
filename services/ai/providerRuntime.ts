@@ -7,6 +7,7 @@ export interface ChatMessage {
 
 export type AIErrorCode =
   | "missing-api-key"
+  | "free-unavailable"
   | "invalid-api-key"
   | "permission-or-quota"
   | "bad-request"
@@ -76,7 +77,11 @@ export function getProviderMeta(provider: AIProvider) {
   };
 }
 
-function getProviderConfig(provider: AIProvider, apiKey: string): ProviderConfig {
+function getProviderConfig(
+  provider: AIProvider,
+  apiKey: string,
+  modelOverride?: string,
+): ProviderConfig {
   const meta = getProviderMeta(provider);
 
   if (!meta.supported) {
@@ -95,7 +100,7 @@ function getProviderConfig(provider: AIProvider, apiKey: string): ProviderConfig
 
   return {
     endpoint: endpointByProvider[provider],
-    model: meta.model,
+    model: modelOverride?.trim() || meta.model,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
@@ -255,6 +260,7 @@ export function serializeAIError(error: unknown) {
 export async function callAIProvider(params: {
   apiKey: string;
   messages: ChatMessage[];
+  model?: string;
   provider: AIProvider;
   timeoutMs?: number;
 }) {
@@ -264,7 +270,7 @@ export async function callAIProvider(params: {
     throw new AIProviderError("请先在我的设置中配置 API Key。", "missing-api-key");
   }
 
-  const config = getProviderConfig(params.provider, apiKey);
+  const config = getProviderConfig(params.provider, apiKey, params.model);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45000);
 

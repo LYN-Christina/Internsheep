@@ -15,6 +15,7 @@ import { useLongSpeechRecognition } from "@/hooks/useLongSpeechRecognition";
 import { useReports } from "@/hooks/useReports";
 import { useSettings } from "@/hooks/useSettings";
 import { useTasks } from "@/hooks/useTasks";
+import { useUsageLimit } from "@/hooks/useUsageLimit";
 import type { AppView } from "@/lib/page-types";
 import { extractTasksFromText } from "@/services/ai/taskExtraction";
 import { generateWeeklyReport } from "@/services/ai/weeklyReport";
@@ -55,6 +56,14 @@ export default function HomePage() {
     addTask,
   } = useTasks(role, isReady);
   const { reports, saveReport } = useReports(isReady);
+  const {
+    canUseTaskExtraction,
+    canUseWeeklyReport,
+    incrementTaskExtraction,
+    incrementWeeklyReport,
+    remainingTaskExtraction,
+    remainingWeeklyReport,
+  } = useUsageLimit(isReady);
   const [manualTitle, setManualTitle] = useState("");
   const [inputText, setInputText] = useState("");
   const [draftResult, setDraftResult] = useState<ExtractionResult | null>(null);
@@ -78,6 +87,7 @@ export default function HomePage() {
   });
 
   const today = getTodayISO();
+  const isUsingUserApiKey = Boolean(settings.apiKey.trim());
   const { start: weekStart, end: weekEnd } = useMemo(
     () => getCurrentWeekRange(),
     [],
@@ -124,6 +134,13 @@ export default function HomePage() {
       return;
     }
 
+    if (!isUsingUserApiKey && !canUseTaskExtraction) {
+      setErrorMessage(
+        "今日免费 AI 提取次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。",
+      );
+      return;
+    }
+
     setIsExtracting(true);
 
     try {
@@ -133,6 +150,9 @@ export default function HomePage() {
         settings,
       });
       setDraftResult(result);
+      if (!isUsingUserApiKey) {
+        incrementTaskExtraction();
+      }
     } catch (error) {
       console.error("Extract tasks failed", error);
       setErrorMessage(
@@ -214,6 +234,13 @@ export default function HomePage() {
       return;
     }
 
+    if (!isUsingUserApiKey && !canUseWeeklyReport) {
+      setErrorMessage(
+        "本周免费周报生成次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。",
+      );
+      return;
+    }
+
     setIsGeneratingReport(true);
 
     try {
@@ -230,6 +257,9 @@ export default function HomePage() {
       setWeeklyContent(content);
       setIsWeeklyReportSaved(false);
       setWeeklyReportNotice("周报草稿已生成，可以继续编辑。");
+      if (!isUsingUserApiKey) {
+        incrementWeeklyReport();
+      }
     } catch (error) {
       console.error("Generate weekly report failed", error);
       setErrorMessage(
@@ -336,6 +366,13 @@ export default function HomePage() {
 
       <Toast message={errorMessage} />
 
+      <section className="rounded-lg border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted-foreground)]">
+        <p className="font-medium text-[var(--foreground)]">Internsheep 测试版</p>
+        <p className="mt-1">
+          当前为公开测试版本。数据仅保存在当前浏览器，请勿输入公司机密、个人隐私、患者信息等敏感内容。
+        </p>
+      </section>
+
       {view === "today" ? (
         <TodayChecklistPageV2
           manualTitle={manualTitle}
@@ -358,8 +395,10 @@ export default function HomePage() {
           inputText={inputText}
           isExtracting={isExtracting}
           isRecording={isRecording}
+          isUsingUserApiKey={isUsingUserApiKey}
           recordingElapsedSeconds={recordingElapsedSeconds}
           recordingNotice={recordingNotice}
+          remainingTaskExtraction={remainingTaskExtraction}
           role={role}
           onCancelRecording={cancelCurrentRecording}
           onAddDraftTask={addDraftTask}
@@ -383,7 +422,9 @@ export default function HomePage() {
         <WeeklyReportPageV2
           isGeneratingReport={isGeneratingReport}
           isWeeklyReportSaved={isWeeklyReportSaved}
+          isUsingUserApiKey={isUsingUserApiKey}
           role={role}
+          remainingWeeklyReport={remainingWeeklyReport}
           weekEnd={weekEnd}
           weekStart={weekStart}
           weeklyReportNotice={weeklyReportNotice}
@@ -399,6 +440,8 @@ export default function HomePage() {
 
       {view === "settings" ? (
         <SettingsPageV2
+          remainingTaskExtraction={remainingTaskExtraction}
+          remainingWeeklyReport={remainingWeeklyReport}
           settings={settings}
           onApiKeyChange={(apiKey) => updateSettings({ ...settings, apiKey })}
           onClearData={clearData}
