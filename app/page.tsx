@@ -327,7 +327,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-5 px-4 pb-24 pt-5">
+    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-5 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5">
       <header className="sticky top-0 z-10 -mx-4 border-b border-[var(--border)] bg-[var(--background)]/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <RoleSwitcher role={role} onSwitchRole={switchRole} />

@@ -27,7 +27,7 @@ const items: Array<{
 
 export function BottomNav({ currentView, onChange }: BottomNavProps) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--border)] bg-white/95 px-2 py-2 backdrop-blur">
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--border)] bg-white/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
       <div className="mx-auto grid max-w-4xl grid-cols-5 gap-1">
         {items.map(({ icon: Icon, label, view }) => (
           <button
