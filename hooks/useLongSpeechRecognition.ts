@@ -20,7 +20,9 @@ interface SpeechRecognitionLike {
   onend: (() => void) | null;
   onresult:
     | ((event: {
-        results: ArrayLike<ArrayLike<{ transcript: string }>>;
+        results: ArrayLike<
+          ArrayLike<{ transcript: string }> & { isFinal?: boolean }
+        >;
       }) => void)
     | null;
   start(): void;
@@ -39,7 +41,7 @@ declare global {
 }
 
 interface UseLongSpeechRecognitionOptions {
-  onTranscript: (text: string) => void;
+  onTranscript: (update: (currentText: string) => string) => void;
   onNotice: (message: string | null) => void;
   onError: (message: string | null) => void;
 }
@@ -74,6 +76,7 @@ export function useLongSpeechRecognition({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const hasShownWarningRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
+  const lastSpeechTextRef = useRef("");
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const stopReasonRef = useRef<StopReason>(null);
 
@@ -98,6 +101,7 @@ export function useLongSpeechRecognition({
 
   function cancelRecording() {
     stopRecognition("cancel");
+    lastSpeechTextRef.current = "";
     setElapsedSeconds(0);
     hasShownWarningRef.current = false;
   }
@@ -144,12 +148,16 @@ export function useLongSpeechRecognition({
     const SpeechRecognition = getSpeechRecognition();
 
     if (!SpeechRecognition) {
-      onNotice("当前浏览器不支持语音转文字，请使用手动输入");
+      onNotice(
+        "当前浏览器不支持语音转文字，请使用手动输入，或尝试使用 Chrome / Safari 打开。",
+      );
       return;
     }
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      onNotice("当前浏览器不支持语音转文字，请使用手动输入");
+      onNotice(
+        "当前浏览器不支持语音转文字，请使用手动输入，或尝试使用 Chrome / Safari 打开。",
+      );
       return;
     }
 
@@ -168,6 +176,7 @@ export function useLongSpeechRecognition({
 
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
+    lastSpeechTextRef.current = "";
     stopReasonRef.current = null;
     recognition.lang = "zh-CN";
     recognition.continuous = true;
@@ -211,10 +220,40 @@ export function useLongSpeechRecognition({
       stopReasonRef.current = null;
     };
     recognition.onresult = (event) => {
-      const text = Array.from(event.results)
-        .map((result) => result[0]?.transcript ?? "")
-        .join("");
-      onTranscript(text);
+      const finalParts: string[] = [];
+      const interimParts: string[] = [];
+
+      Array.from(event.results).forEach((result) => {
+        const transcript = result[0]?.transcript ?? "";
+
+        if (!transcript) {
+          return;
+        }
+
+        if (result.isFinal) {
+          finalParts.push(transcript);
+        } else {
+          interimParts.push(transcript);
+        }
+      });
+
+      const nextSpeechText = [...finalParts, ...interimParts].join("").trim();
+
+      if (!nextSpeechText) {
+        return;
+      }
+
+      onTranscript((currentText) => {
+        const previousSpeechText = lastSpeechTextRef.current;
+        const baseText =
+          previousSpeechText && currentText.endsWith(previousSpeechText)
+            ? currentText.slice(0, -previousSpeechText.length).trimEnd()
+            : currentText.trimEnd();
+        const separator = baseText ? "\n" : "";
+
+        lastSpeechTextRef.current = nextSpeechText;
+        return `${baseText}${separator}${nextSpeechText}`;
+      });
     };
 
     try {

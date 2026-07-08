@@ -19,9 +19,13 @@ export function RoleSwitcher({ onSwitchRole, role }: RoleSwitcherProps) {
       type="button"
       onClick={() => onSwitchRole(nextRole)}
     >
-      <p className="text-xs text-[var(--muted-foreground)]">当前角色</p>
-      <h1 className="text-xl font-semibold">{roleLabels[role]}</h1>
-      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+      <p className="text-[11px] text-[var(--muted-foreground)] sm:text-xs">
+        当前角色
+      </p>
+      <h1 className="text-lg font-semibold leading-tight sm:text-xl">
+        {roleLabels[role]}
+      </h1>
+      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] sm:text-xs">
         点击切换到{roleLabels[nextRole]}
       </p>
     </button>

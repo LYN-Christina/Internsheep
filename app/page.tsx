@@ -357,8 +357,8 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-5 px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5">
-      <header className="sticky top-0 z-10 -mx-4 border-b border-[var(--border)] bg-[var(--background)]/95 px-4 py-3 backdrop-blur">
+    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-3 px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:gap-5 sm:px-4 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pt-5">
+      <header className="sticky top-0 z-10 -mx-3 border-b border-[var(--border)] bg-[var(--background)]/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4 sm:py-3">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
           <RoleSwitcher role={role} onSwitchRole={switchRole} />
         </div>
@@ -366,7 +366,7 @@ export default function HomePage() {
 
       <Toast message={errorMessage} />
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4 text-sm text-[var(--muted-foreground)]">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-4 sm:text-sm">
         <p className="font-medium text-[var(--foreground)]">Internsheep 测试版</p>
         <p className="mt-1">
           当前为公开测试版本。数据仅保存在当前浏览器，请勿输入公司机密、个人隐私、患者信息等敏感内容。

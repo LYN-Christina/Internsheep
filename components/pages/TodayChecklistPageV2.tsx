@@ -49,7 +49,7 @@ function TaskCard({
 }) {
   return (
     <article
-      className={`rounded-md border p-3 ${
+      className={`rounded-md border p-2.5 sm:p-3 ${
         variant === "overdue"
           ? "border-orange-200 bg-orange-50/60"
           : "border-[var(--border)]"
@@ -86,7 +86,7 @@ function TaskCard({
           </p>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
         {variant === "overdue" ? (
           <>
             <Button
@@ -152,21 +152,25 @@ export function TodayChecklistPageV2({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
+    <div className="flex flex-col gap-3 sm:gap-4">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm text-[var(--muted-foreground)]">
+            <p className="text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
               {roleDescriptions[role]}
             </p>
-            <h2 className="mt-1 text-2xl font-semibold">今日清单</h2>
+            <h2 className="mt-1 text-xl font-semibold sm:text-2xl">今日清单</h2>
           </div>
-          <Button type="button" variant="secondary" onClick={onGoRecording}>
+          <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={onGoRecording}>
             <Radio aria-hidden="true" className="size-4" />
             去录音纪要
           </Button>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <p className="mt-3 rounded-md bg-[var(--muted)] px-3 py-2 text-xs text-[var(--muted-foreground)] sm:hidden">
+          今日任务 {todayTasks.length} · 待办 {todayTodoTasks.length} · 已完成{" "}
+          {todayDoneTasks.length}
+        </p>
+        <div className="mt-4 hidden grid-cols-3 gap-3 sm:grid">
           <div className="rounded-md bg-[var(--muted)] p-3">
             <p className="text-xs text-[var(--muted-foreground)]">今日任务</p>
             <p className="mt-1 text-2xl font-semibold">{todayTasks.length}</p>
@@ -182,7 +186,7 @@ export function TodayChecklistPageV2({
         </div>
       </section>
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
         <label className="text-sm font-medium" htmlFor="manual-task">
           手动添加任务
         </label>
@@ -194,7 +198,7 @@ export function TodayChecklistPageV2({
             value={manualTitle}
             onChange={(event) => onManualTitleChange(event.target.value)}
           />
-          <Button type="button" onClick={onAddManualTask}>
+          <Button className="min-h-10" type="button" onClick={onAddManualTask}>
             <Plus aria-hidden="true" className="size-4" />
             添加
           </Button>
@@ -202,7 +206,7 @@ export function TodayChecklistPageV2({
       </section>
 
       {overdueTasks.length ? (
-        <section className="rounded-lg border border-orange-200 bg-orange-50/40 p-4">
+        <section className="rounded-lg border border-orange-200 bg-orange-50/40 p-3 sm:p-4">
           <div className="flex items-center gap-2">
             <CalendarClock aria-hidden="true" className="size-5 text-orange-700" />
             <h3 className="text-base font-semibold">逾期未完成</h3>
@@ -225,7 +229,7 @@ export function TodayChecklistPageV2({
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
         <h3 className="text-base font-semibold">今日待办</h3>
         <div className="mt-3 flex flex-col gap-2">
           {todayTodoTasks.length ? (
@@ -251,7 +255,7 @@ export function TodayChecklistPageV2({
         </div>
       </section>
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
         <h3 className="text-base font-semibold">今日已完成</h3>
         <div className="mt-3 flex flex-col gap-2">
           {todayDoneTasks.length ? (

@@ -36,19 +36,22 @@ export function RecordingNotesPageV2({
       : "今日免费 AI 提取次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。";
 
   return (
-    <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-        <p className="text-sm text-[var(--muted-foreground)]">
+    <div className="flex flex-col gap-3 sm:gap-4">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
+        <p className="text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
           录音会先转成文字，你也可以直接粘贴会议内容或任务安排。
         </p>
-        <h2 className="mt-1 text-2xl font-semibold">录音纪要</h2>
+        <h2 className="mt-1 text-xl font-semibold sm:text-2xl">录音纪要</h2>
+        <p className="mt-2 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
+          移动端语音转文字依赖浏览器支持，如无法显示文字，可直接手动输入或粘贴会议内容。
+        </p>
         <textarea
-          className="mt-3 min-h-40 w-full rounded-md border border-[var(--border)] p-3 text-sm"
+          className="mt-3 min-h-36 w-full rounded-md border border-[var(--border)] p-3 text-sm sm:min-h-40"
           placeholder="转录文本会显示在这里，也可以直接输入今天的任务、会议内容或待办。"
           value={inputText}
           onChange={(event) => onInputTextChange(event.target.value)}
         />
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Button type="button" variant="secondary" onClick={onStartRecording}>
             {isRecording ? (
               <MicOff aria-hidden="true" className="size-4" />
@@ -81,29 +84,29 @@ export function RecordingNotesPageV2({
             {isExtracting ? "提取中" : "提取任务"}
           </Button>
         </div>
-        <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+        <p className="mt-3 text-xs text-[var(--muted-foreground)] sm:text-sm">
           录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 30:00
         </p>
-        <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+        <p className="mt-3 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
           {usageMessage}
         </p>
         {recordingNotice ? (
-          <p className="mt-3 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
+          <p className="mt-3 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
             {recordingNotice}
           </p>
         ) : null}
       </section>
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
+      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-base font-semibold">AI 提取草稿</h3>
-            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            <p className="mt-1 text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
               AI 只生成草稿，你确认后才会保存到今日清单。
             </p>
           </div>
           {draftResult ? (
-            <Button size="sm" type="button" onClick={onSaveSelectedDraftTasks}>
+            <Button className="w-full sm:w-auto" size="sm" type="button" onClick={onSaveSelectedDraftTasks}>
               <Check aria-hidden="true" className="size-4" />
               保存到今日清单
             </Button>
