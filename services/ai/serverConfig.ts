@@ -32,7 +32,15 @@ function isAIProvider(value: string | undefined): value is AIProvider {
 function getDefaultProvider() {
   const provider = process.env.AI_DEFAULT_PROVIDER;
 
-  return isAIProvider(provider) ? provider : "openai";
+  if (isAIProvider(provider)) {
+    return provider;
+  }
+
+  if (process.env.DEEPSEEK_API_KEY?.trim()) {
+    return "deepseek";
+  }
+
+  return "openai";
 }
 
 export function resolveAIRequest<TPayload>(
@@ -58,7 +66,16 @@ export function resolveAIRequest<TPayload>(
     };
   }
 
-  const apiKey = process.env.AI_DEFAULT_API_KEY;
+  const provider = getDefaultProvider();
+  const apiKey =
+    process.env.AI_DEFAULT_API_KEY ||
+    (provider === "deepseek" ? process.env.DEEPSEEK_API_KEY : undefined);
+  const model =
+    process.env.AI_DEFAULT_MODEL ||
+    (provider === "deepseek" ? process.env.DEEPSEEK_MODEL : undefined);
+  const baseURL =
+    process.env.AI_DEFAULT_BASE_URL ||
+    (provider === "deepseek" ? process.env.DEEPSEEK_BASE_URL : undefined);
 
   if (!apiKey?.trim()) {
     throw new AIProviderError(
@@ -70,10 +87,10 @@ export function resolveAIRequest<TPayload>(
 
   return {
     apiKey,
-    baseURL: process.env.AI_DEFAULT_BASE_URL,
+    baseURL,
     mode,
-    model: process.env.AI_DEFAULT_MODEL,
+    model,
     payload,
-    provider: getDefaultProvider(),
+    provider,
   };
 }

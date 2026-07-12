@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { TodayChecklistPageProps } from "@/lib/page-types";
 import type { Task } from "@/types";
 import { getTodayISO } from "@/utils/date";
+import { formatDueDisplay } from "@/utils/dueDate";
 
 const roleDescriptions = {
   intern: "记录实习任务，晚上回看今天完成了什么。",
@@ -84,6 +85,9 @@ function TaskCard({
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
             {task.category} · {task.priority} · {task.source}
           </p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            {formatDueDisplay(task)}
+          </p>
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
@@ -147,6 +151,9 @@ export function TodayChecklistPageV2({
   function continueToday(task: Task) {
     onUpdateTask(task.id, {
       dueDate: getTodayISO(),
+      dueText: "今天继续",
+      dueTime: undefined,
+      uncertainReason: undefined,
       note: task.note ? `${task.note}\n从较早日期顺延。` : "从较早日期顺延。",
     });
   }

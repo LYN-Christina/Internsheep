@@ -28,7 +28,11 @@ export function SettingsPageV2({
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const hasApiKey = Boolean(settings.apiKey.trim());
-  const providerMeta = getProviderMeta(settings.apiProvider);
+  const visibleProvider =
+    settings.apiProvider === "openai-compatible" || settings.apiProvider === "yunfeng"
+      ? "deepseek"
+      : settings.apiProvider;
+  const providerMeta = getProviderMeta(visibleProvider);
   const currentMode = hasApiKey ? "自用 API Key" : "免费体验";
 
   function getConnectionErrorMessage(error: unknown) {
@@ -51,7 +55,7 @@ export function SettingsPageV2({
     try {
       const message = await testAIConnection({
         apiKey: settings.apiKey,
-        provider: settings.apiProvider,
+        provider: visibleProvider,
       });
       setConnectionMessage(message);
     } catch (error) {
@@ -87,16 +91,12 @@ export function SettingsPageV2({
         模型服务商
         <select
           className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm"
-          value={settings.apiProvider}
+          value={visibleProvider}
           onChange={(event) => onProviderChange(event.target.value as ApiProvider)}
         >
           <option value="openai">OpenAI</option>
           <option value="deepseek">DeepSeek</option>
-          <option value="openai-compatible">OpenAI-compatible</option>
-          <option value="yunfeng">FengAPI（兼容旧配置）</option>
-          <option disabled value="anthropic">
-            Anthropic（暂未支持）
-          </option>
+          <option value="anthropic">Anthropic</option>
         </select>
       </label>
       <p className="mt-2 text-xs text-[var(--muted-foreground)]">

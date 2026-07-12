@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import type { GrowthTrailPageProps } from "@/lib/page-types";
 import type { Report, Task } from "@/types";
+import { formatDueDisplay } from "@/utils/dueDate";
 
 function GrowthSummaryCards({
   reports,
@@ -53,9 +54,14 @@ function GrowthDayCard({ date, tasks }: { date: string; tasks: Task[] }) {
       </div>
       <div className="mt-2 flex flex-col gap-1">
         {tasks.slice(0, 4).map((task) => (
-          <p className="truncate text-sm text-[var(--muted-foreground)]" key={task.id}>
-            {task.status === "done" ? "✓" : "·"} {task.title}
-          </p>
+          <div className="min-w-0" key={task.id}>
+            <p className="truncate text-sm text-[var(--muted-foreground)]">
+              {task.status === "done" ? "✓" : "·"} {task.title}
+            </p>
+            <p className="truncate text-xs text-[var(--muted-foreground)]">
+              {formatDueDisplay(task)}
+            </p>
+          </div>
         ))}
       </div>
     </article>

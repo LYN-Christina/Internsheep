@@ -1,6 +1,6 @@
 import { readJson, removeStorageItem, writeJson } from "@/services/storage/jsonStorage";
 import { storageKeys } from "@/services/storage/storageKeys";
-import type { Settings, UserRole } from "@/types";
+import type { AIProvider, Settings, UserRole } from "@/types";
 
 export const defaultSettings: Settings = {
   apiProvider: "openai",
@@ -22,8 +22,12 @@ export function getSettings() {
     storageKeys.currentRole,
     settings.currentRole,
   );
+  const apiProvider: AIProvider =
+    settings.apiProvider === "openai-compatible" || settings.apiProvider === "yunfeng"
+      ? "deepseek"
+      : settings.apiProvider;
 
-  return { ...defaultSettings, ...settings, currentRole };
+  return { ...defaultSettings, ...settings, apiProvider, currentRole };
 }
 
 export function saveSettings(settings: Settings) {

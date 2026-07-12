@@ -4,6 +4,7 @@ import {
   type ChatMessage,
 } from "@/services/ai/providerRuntime";
 import type { AIProvider, Task, UserRole } from "@/types";
+import { getTodayISO } from "@/utils/date";
 
 export interface GenerateWeeklyReportInput {
   role: UserRole;
@@ -19,6 +20,19 @@ export interface GenerateWeeklyReportInput {
 }
 
 function buildWeeklyReportMessages(input: GenerateWeeklyReportInput): ChatMessage[] {
+  const today = getTodayISO();
+  const reportTasks = input.tasks.map((task) => ({
+    category: task.category,
+    dueDate: task.dueDate ?? null,
+    dueText: task.dueText ?? null,
+    dueTime: task.dueTime ?? null,
+    note: task.note ?? null,
+    priority: task.priority,
+    status: task.status,
+    title: task.title,
+    uncertainReason: task.uncertainReason ?? null,
+  }));
+
   return [
     {
       role: "system",
@@ -29,10 +43,11 @@ function buildWeeklyReportMessages(input: GenerateWeeklyReportInput): ChatMessag
       role: "user",
       content: `用户角色：${input.role}
 报告日期范围：${input.startDate} 至 ${input.endDate}
+当前日期：${today}
 语气偏好：0=非常正式，100=非常轻松，当前值=${input.toneValue}
 长度偏好：0=非常简洁，100=非常详细，当前值=${input.lengthValue}
 本周任务记录：
-${JSON.stringify(input.tasks, null, 2)}
+${JSON.stringify(reportTasks, null, 2)}
 
 请按以下模板生成纯文本周报：
 
@@ -57,6 +72,8 @@ ${JSON.stringify(input.tasks, null, 2)}
 - 语气自然，不要堆砌空话套话；
 - 已完成任务用肯定语气；
 - 未完成任务客观描述；
+- 结合 dueDate、dueTime、dueText 判断即将截止、已逾期和下周计划；
+- dueDate 为空时不要误判逾期，可参考 dueText 和 uncertainReason；
 - 本周收获要具体，从任务内容中提炼真实成长点；
 - 输出纯文本；
 - 不要输出 JSON；

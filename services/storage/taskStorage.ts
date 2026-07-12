@@ -7,6 +7,7 @@ import {
   isSameDay,
   isWithinRange,
 } from "@/utils/date";
+import { isOverdueTask } from "@/utils/dueDate";
 
 export function getTasks(role: UserRole) {
   return readJson<Task[]>(getTaskStorageKey(role), []);
@@ -43,14 +44,18 @@ export function deleteTask(role: UserRole, taskId: string) {
 export function getTodayTasks(role: UserRole) {
   const today = getTodayISO();
 
-  return getTasks(role).filter((task) => isSameDay(task.dueDate ?? task.createdAt, today));
+  return getTasks(role).filter((task) =>
+    task.dueDate
+      ? isSameDay(task.dueDate, today)
+      : isSameDay(task.createdAt, today),
+  );
 }
 
 export function getOverdueTasks(role: UserRole) {
   const today = getTodayISO();
 
   return getTasks(role).filter(
-    (task) => task.status === "todo" && Boolean(task.dueDate) && task.dueDate! < today,
+    (task) => isOverdueTask(task, today),
   );
 }
 

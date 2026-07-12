@@ -11,6 +11,7 @@ import type {
   Settings,
   TaskPriority,
 } from "@/types";
+import { normalizeDueDateFromAI } from "@/utils/dueDate";
 
 const categoriesByRole: Record<Role, string[]> = {
   intern: ["项目", "会议", "文档", "学习", "其他"],
@@ -18,6 +19,24 @@ const categoriesByRole: Record<Role, string[]> = {
 };
 
 const priorities: TaskPriority[] = ["high", "medium", "low"];
+const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+function getChinaDateContext() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Shanghai",
+    weekday: "long",
+    year: "numeric",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    currentDate: `${values.year}-${values.month}-${values.day}`,
+    currentWeekday: values.weekday || weekdays[now.getDay()],
+  };
+}
 
 function parseJsonBlock(text: string) {
   const trimmed = text.trim();
@@ -46,14 +65,26 @@ function normalizeDraftTask(
 ): DraftTask {
   const fallbackCategory = categories.at(-1) ?? "其他";
   const category = String(task.category || fallbackCategory);
+  const normalizedDue = normalizeDueDateFromAI({
+    dueDate: task.dueDate,
+    dueText: task.dueText ?? task.due,
+    dueTime: task.dueTime,
+    uncertainReason: task.uncertainReason,
+  });
+  const dueText = normalizedDue.dueText ?? String(task.due || "不确定");
+  const defaultDueDate = getChinaDateContext().currentDate;
 
   return {
     category: categories.includes(category) ? category : fallbackCategory,
-    due: String(task.due || "不确定"),
+    due: dueText,
+    dueDate: normalizedDue.dueDate ?? defaultDueDate,
+    dueText: normalizedDue.dueText,
+    dueTime: normalizedDue.dueTime,
     id: crypto.randomUUID(),
     priority: normalizePriority(task.priority),
     selected: true,
     title: String(task.title || `未命名任务${index + 1}`).trim().slice(0, 50),
+    uncertainReason: normalizedDue.uncertainReason,
   };
 }
 
@@ -62,6 +93,7 @@ export function buildExtractTasksMessages(params: {
   text: string;
 }): ChatMessage[] {
   const categories = categoriesByRole[params.role];
+  const { currentDate, currentWeekday } = getChinaDateContext();
 
   return [
     {
@@ -72,7 +104,8 @@ export function buildExtractTasksMessages(params: {
     {
       role: "user",
       content: `用户角色：${params.role}
-当前日期：${new Date().toISOString().slice(0, 10)}
+当前日期：${currentDate}
+当前星期：${currentWeekday}
 可用分类：${categories.join(" / ")}
 
 请从以下内容中提取明确的待办事项：
@@ -87,7 +120,10 @@ ${params.text}
       "title": "任务标题，动词开头，简洁明确，不超过20字",
       "category": "分类",
       "priority": "high/medium/low",
-      "due": "今天/明天/本周/不确定"
+      "dueText": "用户原话中的截止时间描述，例如 周一下午五点；没有则为 null",
+      "dueDate": "YYYY-MM-DD；无法确定则为 null",
+      "dueTime": "HH:mm；无法确定则为 null",
+      "uncertainReason": "如果无法确定日期或时间，说明原因；可以确定则为 null"
     }
   ],
   "summary": "一句话描述今天输入的主要内容，不超过30字",
@@ -99,6 +135,14 @@ ${params.text}
 - 不提取已经完成的事情
 - 任务标题尽量用动词开头
 - 不确定的任务 priority 设为 low
+- 根据当前日期和当前星期推算相对时间：今天、明天、后天、本周一、本周二、本周三、本周四、本周五、下周一、下周二、周一下午五点、星期四下午三点、明早、今晚、本周五下班前、下周交、月底前
+- 当用户描述未来任务时，周几通常指接下来最近的对应星期；如果当天已经过了该时间，理解为下一次对应星期
+- 如果用户说“周一下午五点交 PRD”，必须提取 dueDate 和 dueTime
+- 如果用户只说“本周交”，dueDate 可以为 null，但 dueText 必须保留“本周”
+- 如果用户只说“下周前”，dueDate 可以为 null，uncertainReason 写“缺少具体日期”
+- 如果用户只说“下午五点”但没有说明哪天，可以 dueTime 为 "17:00"，dueDate 为 null
+- 如果用户说“明天下午三点”，需要根据 currentDate 计算 dueDate
+- dueDate 必须是 YYYY-MM-DD，dueTime 必须是 24 小时制 HH:mm
 - 最多提取 8 个任务
 - 不要输出 Markdown
 - 不要输出解释文本`,
@@ -164,6 +208,7 @@ export async function extractTasksWithProvider(params: {
     messages: buildExtractTasksMessages({ role: params.role, text }),
     model: params.model,
     provider: params.provider,
+    responseFormat: "json_object",
   });
 
   return parseExtractionResult({ content, role: params.role });

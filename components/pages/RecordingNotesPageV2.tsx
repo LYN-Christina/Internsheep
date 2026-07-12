@@ -205,6 +205,59 @@ export function RecordingNotesPageV2({
                       <option value="low">低</option>
                     </select>
                   </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                      截止日期
+                      <input
+                        className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
+                        type="date"
+                        value={task.dueDate ?? ""}
+                        onChange={(event) =>
+                          onUpdateDraft(task.id, {
+                            dueDate: event.target.value || undefined,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                      截止时间
+                      <input
+                        className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
+                        type="time"
+                        value={task.dueTime ?? ""}
+                        onChange={(event) =>
+                          onUpdateDraft(task.id, {
+                            dueTime: event.target.value || undefined,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                      原始时间描述
+                      <input
+                        className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
+                        placeholder="例如 周一下午5点"
+                        value={task.dueText ?? ""}
+                        onChange={(event) =>
+                          onUpdateDraft(task.id, {
+                            due: event.target.value || "不确定",
+                            dueText: event.target.value || undefined,
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                  {task.dueDate || task.dueTime || task.dueText ? (
+                    task.uncertainReason ? (
+                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                        时间识别提示：{task.uncertainReason}
+                      </p>
+                    ) : null
+                  ) : (
+                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                      未识别到明确截止时间，可手动补充。
+                    </p>
+                  )}
                 </article>
               ))}
               <Button type="button" variant="secondary" onClick={onAddDraftTask}>

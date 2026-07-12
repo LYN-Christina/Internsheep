@@ -55,6 +55,28 @@ interface ProviderResponseSummary {
 
 const DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "https://api.fengapi.top/v1";
 
+function buildAnthropicBody(messages: ChatMessage[], model: string) {
+  const systemMessages = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content)
+    .join("\n\n");
+  const conversationMessages = messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({
+      content: message.content,
+      role: message.role,
+    }));
+
+  return {
+    max_tokens: 2048,
+    messages: conversationMessages.length
+      ? conversationMessages
+      : [{ content: "请回复 ok", role: "user" }],
+    model,
+    ...(systemMessages ? { system: systemMessages } : {}),
+  };
+}
+
 function normalizeOpenAICompatibleBaseURL(baseURL: string) {
   const trimmed = baseURL.trim().replace(/\/+$/, "");
 
@@ -205,7 +227,7 @@ export function getProviderMeta(provider: AIProvider) {
     baseURL: "https://api.anthropic.com/v1",
     model: "claude-3-5-haiku-latest",
     name: "Anthropic",
-    supported: false,
+    supported: true,
   };
 }
 
@@ -214,12 +236,13 @@ function getProviderConfig(
   apiKey: string,
   baseURLOverride?: string,
   modelOverride?: string,
+  responseFormat?: "json_object",
 ): ProviderConfig {
   const meta = getProviderMeta(provider);
 
   if (!meta.supported) {
     throw new AIProviderError(
-      `${meta.name} 暂未接入当前 MVP，请先选择 OpenAI、DeepSeek 或 OpenAI-compatible。`,
+      `${meta.name} 暂未接入当前 MVP，请先选择 OpenAI、DeepSeek 或 Anthropic。`,
       "unsupported-provider",
     );
   }
@@ -227,17 +250,32 @@ function getProviderConfig(
   const baseURL =
     provider === "openai-compatible" || provider === "yunfeng"
       ? normalizeOpenAICompatibleBaseURL(baseURLOverride || meta.baseURL)
-      : meta.baseURL;
+      : meta.baseURL.replace(/\/+$/, "");
+  const endpoint =
+    provider === "anthropic"
+      ? `${baseURL}/messages`
+      : buildChatCompletionsEndpoint(baseURL);
 
   return {
-    endpoint: buildChatCompletionsEndpoint(baseURL),
+    endpoint,
     baseURL,
     model: modelOverride?.trim() || meta.model,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers:
+      provider === "anthropic"
+        ? {
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+          }
+        : {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
     body(messages) {
+      if (provider === "anthropic") {
+        return buildAnthropicBody(messages, this.model);
+      }
+
       const body: {
         messages: ChatMessage[];
         model: string;
@@ -249,13 +287,25 @@ function getProviderConfig(
         temperature: 0.2,
       };
 
-      if (provider !== "yunfeng" && provider !== "openai-compatible") {
+      if (responseFormat === "json_object") {
         body.response_format = { type: "json_object" };
       }
 
       return body;
     },
     parse(data) {
+      if (provider === "anthropic") {
+        const response = data as {
+          content?: Array<{ text?: unknown; type?: string }>;
+        };
+
+        return (
+          response.content
+            ?.map((part) => (typeof part.text === "string" ? part.text : ""))
+            .join("") ?? ""
+        );
+      }
+
       return parseProviderContent(data);
     },
   };
@@ -471,6 +521,7 @@ export async function callAIProvider(params: {
   messages: ChatMessage[];
   model?: string;
   provider: AIProvider;
+  responseFormat?: "json_object";
   timeoutMs?: number;
 }) {
   const apiKey = params.apiKey.trim();
@@ -484,6 +535,7 @@ export async function callAIProvider(params: {
     apiKey,
     params.baseURL,
     params.model,
+    params.responseFormat,
   );
   const maxAttempts = 2;
 

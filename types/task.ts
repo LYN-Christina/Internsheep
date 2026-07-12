@@ -12,6 +12,9 @@ export interface Task {
   priority: TaskPriority;
   status: TaskStatus;
   dueDate?: string;
+  dueText?: string;
+  dueTime?: string;
+  uncertainReason?: string;
   note?: string;
   source: TaskSource;
   role: UserRole;
@@ -25,6 +28,10 @@ export interface DraftTask {
   category: string;
   priority: TaskPriority;
   due: string;
+  dueDate?: string;
+  dueText?: string;
+  dueTime?: string;
+  uncertainReason?: string;
   selected: boolean;
 }
 
