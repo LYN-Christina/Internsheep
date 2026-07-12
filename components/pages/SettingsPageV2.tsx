@@ -5,7 +5,10 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { SettingsPageProps } from "@/lib/page-types";
-import { getProviderMeta } from "@/services/ai/providerRuntime";
+import {
+  AIProviderError,
+  getProviderMeta,
+} from "@/services/ai/providerRuntime";
 import { testAIConnection } from "@/services/ai/testConnection";
 import type { ApiProvider } from "@/types";
 
@@ -28,6 +31,18 @@ export function SettingsPageV2({
   const providerMeta = getProviderMeta(settings.apiProvider);
   const currentMode = hasApiKey ? "自用 API Key" : "免费体验";
 
+  function getConnectionErrorMessage(error: unknown) {
+    if (error instanceof AIProviderError) {
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "连接测试失败，请稍后重试。";
+  }
+
   async function handleTestConnection() {
     setConnectionMessage(null);
     setConnectionError(null);
@@ -40,10 +55,7 @@ export function SettingsPageV2({
       });
       setConnectionMessage(message);
     } catch (error) {
-      console.error("AI connection test failed", error);
-      setConnectionError(
-        error instanceof Error ? error.message : "连接测试失败，请稍后重试。",
-      );
+      setConnectionError(getConnectionErrorMessage(error));
     } finally {
       setIsTestingConnection(false);
     }
@@ -80,7 +92,8 @@ export function SettingsPageV2({
         >
           <option value="openai">OpenAI</option>
           <option value="deepseek">DeepSeek</option>
-          <option value="yunfeng">yun.feng.xx.kg</option>
+          <option value="openai-compatible">OpenAI-compatible</option>
+          <option value="yunfeng">FengAPI（兼容旧配置）</option>
           <option disabled value="anthropic">
             Anthropic（暂未支持）
           </option>
@@ -88,6 +101,9 @@ export function SettingsPageV2({
       </label>
       <p className="mt-2 text-xs text-[var(--muted-foreground)]">
         当前配置：{providerMeta.baseURL} / {providerMeta.model}
+      </p>
+      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+        模型名必须填写第三方平台支持的精确名称；如果测试连接提示模型不可用，请在部署环境中检查 AI_DEFAULT_MODEL。
       </p>
 
       <label className="mt-4 flex flex-col gap-2 text-sm font-medium">
@@ -167,7 +183,7 @@ export function SettingsPageV2({
       <div className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
         <p className="font-medium text-[var(--foreground)]">隐私说明</p>
         <p className="mt-1">
-          自用 API Key、任务和报告都只存储在当前浏览器 localStorage。调用 AI 时，自用 API Key 只会发送到本站后端 API route 代理请求，不会写入前端代码或 GitHub。录音转文字使用浏览器能力。
+          自用 API Key、任务和报告都只存储在当前浏览器 localStorage。调用 AI 时，自用 API Key 只会发送到本站后端 API route 代理请求，不会写入前端代码或 GitHub。录音转文字会在停止录音后上传音频到服务端 ASR 处理。
         </p>
         <p className="mt-1">
           清除浏览器缓存可能导致数据丢失，换设备后数据不会自动同步。建议定期导出数据或导出 Markdown 备份重要周报。

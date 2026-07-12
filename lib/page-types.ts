@@ -30,6 +30,9 @@ export interface RecordingNotesPageProps {
   draftResult: ExtractionResult | null;
   isExtracting: boolean;
   isRecording: boolean;
+  isTranscribing: boolean;
+  hasRecordedAudio: boolean;
+  recordingMimeType: string | null;
   recordingElapsedSeconds: number;
   recordingNotice: string | null;
   isUsingUserApiKey: boolean;
@@ -38,6 +41,8 @@ export interface RecordingNotesPageProps {
   onAddDraftTask: () => void;
   onInputTextChange: (value: string) => void;
   onStartRecording: () => void;
+  onStopRecording: () => void;
+  onTranscribeAudio: () => void;
   onExtract: () => void;
   onUpdateDraft: (id: string, patch: Partial<DraftTask>) => void;
   onSaveSelectedDraftTasks: () => void;

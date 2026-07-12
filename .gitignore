@@ -10,7 +10,9 @@ build/
 
 # local env files
 .env
+.env.local
 .env.*
+.env.*.local
 .env*.local
 
 # logs

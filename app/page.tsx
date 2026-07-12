@@ -10,8 +10,8 @@ import { SettingsPageV2 } from "@/components/pages/SettingsPageV2";
 import { TodayChecklistPageV2 } from "@/components/pages/TodayChecklistPageV2";
 import { WeeklyReportPageV2 } from "@/components/pages/WeeklyReportPageV2";
 import { RoleSwitcher } from "@/components/role/RoleSwitcher";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
-import { useLongSpeechRecognition } from "@/hooks/useLongSpeechRecognition";
 import { useReports } from "@/hooks/useReports";
 import { useSettings } from "@/hooks/useSettings";
 import { useTasks } from "@/hooks/useTasks";
@@ -34,6 +34,9 @@ const manualCategories: Record<Role, string[]> = {
   intern: ["项目", "会议", "文档", "学习", "其他"],
   student: ["作业", "课程", "实验", "社团", "其他"],
 };
+const MAX_AUDIO_UPLOAD_BYTES = 4 * 1024 * 1024;
+const TRANSCRIBE_FALLBACK_ERROR =
+  "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
 
 export default function HomePage() {
   const [view, setView] = useState<AppView>("today");
@@ -68,6 +71,7 @@ export default function HomePage() {
   const [inputText, setInputText] = useState("");
   const [draftResult, setDraftResult] = useState<ExtractionResult | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
   const [weeklyContent, setWeeklyContent] = useState("");
@@ -75,15 +79,16 @@ export default function HomePage() {
   const [isWeeklyReportSaved, setIsWeeklyReportSaved] = useState(false);
   const [weeklyReportNotice, setWeeklyReportNotice] = useState<string | null>(null);
   const {
+    audioBlob,
     cancelRecording,
     elapsedSeconds: recordingElapsedSeconds,
     isRecording,
+    mimeType: recordingMimeType,
     startRecording,
     stopRecording,
-  } = useLongSpeechRecognition({
+  } = useAudioRecorder({
     onError: setErrorMessage,
     onNotice: setRecordingNotice,
-    onTranscript: setInputText,
   });
 
   const today = getTodayISO();
@@ -94,7 +99,7 @@ export default function HomePage() {
   );
 
   function switchRole(nextRole: Role) {
-    stopRecording();
+    void stopRecording();
     switchCurrentRole(nextRole);
     setDraftResult(null);
     setInputText("");
@@ -346,10 +351,143 @@ export default function HomePage() {
 
   function cancelCurrentRecording() {
     cancelRecording();
-    setInputText("");
     setDraftResult(null);
     setRecordingNotice(null);
     setErrorMessage(null);
+  }
+
+  async function stopCurrentRecording() {
+    const blob = await stopRecording();
+
+    if (blob) {
+      setRecordingNotice("音频已录制。你可以点击“转写录音”，也可以继续手动输入或粘贴会议内容。");
+    }
+  }
+
+  function getAudioFileName(mimeType: string | null) {
+    if (mimeType?.includes("mp4")) {
+      return "recording.mp4";
+    }
+
+    if (mimeType?.includes("mpeg")) {
+      return "recording.mp3";
+    }
+
+    if (mimeType?.includes("wav")) {
+      return "recording.wav";
+    }
+
+    if (mimeType?.includes("ogg")) {
+      return "recording.ogg";
+    }
+
+    return "recording.webm";
+  }
+
+  function getTranscribeErrorMessage(params: {
+    code?: string;
+    message?: string;
+    status?: number;
+  }) {
+    if (params.status === 413 || params.code === "audio-too-large") {
+      return "录音文件较大，建议缩短录音或分段记录。";
+    }
+
+    if (!params.message) {
+      return TRANSCRIBE_FALLBACK_ERROR;
+    }
+
+    if (
+      params.code === "asr-not-configured" ||
+      params.code === "tencent-not-configured" ||
+      params.message.includes("暂未配置") ||
+      params.message.includes("未配置完整")
+    ) {
+      return "语音转文字服务暂未配置，请使用手动输入。";
+    }
+
+    if (params.code === "tencent-auth-failed") {
+      return "语音转文字服务鉴权失败，请联系开发者检查腾讯云密钥。";
+    }
+
+    if (params.code === "tencent-unsupported-format") {
+      return "当前录音格式暂不支持转写，请尝试换用手机自带浏览器或使用手动输入。";
+    }
+
+    if (
+      params.code === "tencent-bad-config" ||
+      params.code === "tencent-unsupported-type"
+    ) {
+      return "语音转文字参数配置有误，请联系开发者检查腾讯云配置。";
+    }
+
+    return TRANSCRIBE_FALLBACK_ERROR;
+  }
+
+  async function transcribeRecordedAudio() {
+    setErrorMessage(null);
+
+    if (!audioBlob) {
+      setErrorMessage("请先录制一段音频后再转写。");
+      return;
+    }
+
+    if (audioBlob.size > MAX_AUDIO_UPLOAD_BYTES) {
+      setErrorMessage(
+        "录音文件过大，可能超过部署平台上传限制。建议长会议分段记录，或先手动输入会议内容。",
+      );
+      setRecordingNotice("音频仍已保留。你可以取消后重新分段录音，或直接手动输入。");
+      return;
+    }
+
+    setIsTranscribing(true);
+    setRecordingNotice("正在转写录音，请稍等…");
+
+    try {
+      const formData = new FormData();
+      formData.append(
+        "audio",
+        audioBlob,
+        getAudioFileName(recordingMimeType ?? audioBlob.type),
+      );
+
+      const response = await fetch("/api/ai/transcribe-audio", {
+        body: formData,
+        method: "POST",
+      });
+      const data = (await response.json()) as
+        | { text: string }
+        | { error?: { code?: string; message?: string } };
+
+      if (!response.ok || !("text" in data)) {
+        const transcribeError = "error" in data ? data.error : undefined;
+
+        throw new Error(
+          getTranscribeErrorMessage({
+            code: transcribeError?.code,
+            message: transcribeError?.message,
+            status: response.status,
+          }),
+        );
+      }
+
+      setInputText((currentText) => {
+        const current = currentText.trimEnd();
+        const next = data.text.trim();
+
+        return current ? `${current}\n${next}` : next;
+      });
+      setRecordingNotice("录音已转写到文本框，你可以继续编辑后再提取任务。");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : TRANSCRIBE_FALLBACK_ERROR,
+      );
+      setRecordingNotice("转写失败，音频仍已保留。你可以重试，或直接手动输入 / 粘贴会议内容。");
+    } finally {
+      setIsTranscribing(false);
+    }
   }
 
   if (!isReady) {
@@ -393,9 +531,12 @@ export default function HomePage() {
         <RecordingNotesPageV2
           draftResult={draftResult}
           inputText={inputText}
+          hasRecordedAudio={Boolean(audioBlob)}
           isExtracting={isExtracting}
           isRecording={isRecording}
+          isTranscribing={isTranscribing}
           isUsingUserApiKey={isUsingUserApiKey}
+          recordingMimeType={recordingMimeType}
           recordingElapsedSeconds={recordingElapsedSeconds}
           recordingNotice={recordingNotice}
           remainingTaskExtraction={remainingTaskExtraction}
@@ -406,6 +547,8 @@ export default function HomePage() {
           onInputTextChange={setInputText}
           onSaveSelectedDraftTasks={saveSelectedDraftTasks}
           onStartRecording={startRecording}
+          onStopRecording={stopCurrentRecording}
+          onTranscribeAudio={transcribeRecordedAudio}
           onUpdateDraft={updateDraft}
         />
       ) : null}

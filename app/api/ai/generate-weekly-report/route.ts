@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       ...resolved.payload,
       apiKey: resolved.apiKey,
       apiProvider: resolved.provider,
+      baseURL: resolved.baseURL,
       model: resolved.model,
     });
 

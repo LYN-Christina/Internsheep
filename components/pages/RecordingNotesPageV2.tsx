@@ -2,7 +2,7 @@ import { Check, Mic, MicOff, Plus, RefreshCw } from "lucide-react";
 
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
-import { formatRecordingTime } from "@/hooks/useLongSpeechRecognition";
+import { formatRecordingTime } from "@/hooks/useAudioRecorder";
 import type { RecordingNotesPageProps } from "@/lib/page-types";
 import type { TaskPriority } from "@/types";
 
@@ -16,14 +16,19 @@ export function RecordingNotesPageV2({
   inputText,
   isExtracting,
   isRecording,
+  isTranscribing,
   isUsingUserApiKey,
+  hasRecordedAudio,
   onAddDraftTask,
   onCancelRecording,
   onExtract,
   onInputTextChange,
   onSaveSelectedDraftTasks,
   onStartRecording,
+  onStopRecording,
+  onTranscribeAudio,
   onUpdateDraft,
+  recordingMimeType,
   recordingElapsedSeconds,
   recordingNotice,
   remainingTaskExtraction,
@@ -34,16 +39,17 @@ export function RecordingNotesPageV2({
     : remainingTaskExtraction > 0
       ? `免费体验：今日还可 AI 提取 ${remainingTaskExtraction} 次。`
       : "今日免费 AI 提取次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。";
+  const isWebmRecording = recordingMimeType?.includes("webm") ?? false;
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
       <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
-          录音会先转成文字，你也可以直接粘贴会议内容或任务安排。
+          录音会先保存为音频，停止后再转成文字。测试版单次最长支持 10 分钟，长会议建议分段记录。
         </p>
         <h2 className="mt-1 text-xl font-semibold sm:text-2xl">录音纪要</h2>
         <p className="mt-2 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
-          移动端语音转文字依赖浏览器支持，如无法显示文字，可直接手动输入或粘贴会议内容。
+          如果转写失败，也可以直接手动输入或粘贴会议内容。
         </p>
         <textarea
           className="mt-3 min-h-36 w-full rounded-md border border-[var(--border)] p-3 text-sm sm:min-h-40"
@@ -52,29 +58,43 @@ export function RecordingNotesPageV2({
           onChange={(event) => onInputTextChange(event.target.value)}
         />
         <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <Button type="button" variant="secondary" onClick={onStartRecording}>
-            {isRecording ? (
-              <MicOff aria-hidden="true" className="size-4" />
-            ) : (
-              <Mic aria-hidden="true" className="size-4" />
-            )}
-            {isRecording ? "录音中" : "开始录音"}
+          <Button
+            disabled={isRecording || isTranscribing}
+            type="button"
+            variant="secondary"
+            onClick={onStartRecording}
+          >
+            <Mic aria-hidden="true" className="size-4" />
+            开始录音
           </Button>
           <Button
             disabled={!isRecording}
             type="button"
             variant="secondary"
-            onClick={onStartRecording}
+            onClick={onStopRecording}
           >
+            <MicOff aria-hidden="true" className="size-4" />
             停止录音
           </Button>
           <Button
-            disabled={!isRecording && !inputText}
+            disabled={!isRecording && !hasRecordedAudio}
             type="button"
             variant="ghost"
             onClick={onCancelRecording}
           >
             取消
+          </Button>
+          <Button
+            disabled={!hasRecordedAudio || isRecording || isTranscribing}
+            type="button"
+            variant="secondary"
+            onClick={onTranscribeAudio}
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={isTranscribing ? "size-4 animate-spin" : "size-4"}
+            />
+            {isTranscribing ? "转写中" : "转写录音"}
           </Button>
           <Button disabled={isExtracting} type="button" onClick={onExtract}>
             <RefreshCw
@@ -85,8 +105,21 @@ export function RecordingNotesPageV2({
           </Button>
         </div>
         <p className="mt-3 text-xs text-[var(--muted-foreground)] sm:text-sm">
-          录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 30:00
+          录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 10:00
         </p>
+        {hasRecordedAudio ? (
+          <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
+            音频已录制{recordingMimeType ? `（${recordingMimeType}）` : ""}，可点击“转写录音”。长会议建议分段记录。
+            {isWebmRecording
+              ? " 当前格式可能不被腾讯云极速识别支持，转写失败时请改用手动输入或换手机自带浏览器。"
+              : ""}
+          </p>
+        ) : null}
+        {isTranscribing ? (
+          <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
+            正在转写录音，请稍等…
+          </p>
+        ) : null}
         <p className="mt-3 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
           {usageMessage}
         </p>

@@ -12,6 +12,7 @@ export interface AIRequestEnvelope<TPayload> {
 
 interface ResolvedAIConfig<TPayload> {
   apiKey: string;
+  baseURL?: string;
   mode: AIMode;
   model?: string;
   payload: TPayload;
@@ -22,6 +23,7 @@ function isAIProvider(value: string | undefined): value is AIProvider {
   return (
     value === "openai" ||
     value === "deepseek" ||
+    value === "openai-compatible" ||
     value === "yunfeng" ||
     value === "anthropic"
   );
@@ -68,6 +70,7 @@ export function resolveAIRequest<TPayload>(
 
   return {
     apiKey,
+    baseURL: process.env.AI_DEFAULT_BASE_URL,
     mode,
     model: process.env.AI_DEFAULT_MODEL,
     payload,

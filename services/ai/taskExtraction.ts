@@ -146,6 +146,7 @@ export function parseExtractionResult(params: {
 
 export async function extractTasksWithProvider(params: {
   apiKey: string;
+  baseURL?: string;
   model?: string;
   provider: AIProvider;
   role: Role;
@@ -159,6 +160,7 @@ export async function extractTasksWithProvider(params: {
 
   const content = await callAIProvider({
     apiKey: params.apiKey,
+    baseURL: params.baseURL,
     messages: buildExtractTasksMessages({ role: params.role, text }),
     model: params.model,
     provider: params.provider,

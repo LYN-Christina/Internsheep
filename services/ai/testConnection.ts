@@ -1,4 +1,7 @@
-import { AIProviderError } from "@/services/ai/providerRuntime";
+import {
+  AIProviderError,
+  type AIErrorCode,
+} from "@/services/ai/providerRuntime";
 import type { AIProvider } from "@/types";
 
 export async function testAIConnection(params: {
@@ -20,10 +23,12 @@ export async function testAIConnection(params: {
     | { error: { code: string; message: string; status?: number } };
 
   if (!response.ok || "error" in data) {
+    const error = "error" in data ? data.error : null;
+
     throw new AIProviderError(
-      "error" in data ? data.error.message : "连接测试失败。",
-      "provider",
-      "error" in data ? data.error.status : response.status,
+      error?.message ?? "连接测试失败。",
+      (error?.code as AIErrorCode | undefined) ?? "provider",
+      error?.status ?? response.status,
       data,
     );
   }

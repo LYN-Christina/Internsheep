@@ -14,6 +14,7 @@ export interface GenerateWeeklyReportInput {
   lengthValue: number;
   apiProvider: AIProvider;
   apiKey: string;
+  baseURL?: string;
   model?: string;
 }
 
@@ -77,6 +78,7 @@ export async function generateWeeklyReportWithProvider(
 
   const content = await callAIProvider({
     apiKey: input.apiKey,
+    baseURL: input.baseURL,
     messages: buildWeeklyReportMessages(input),
     model: input.model,
     provider: input.apiProvider,

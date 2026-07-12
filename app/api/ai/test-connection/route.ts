@@ -16,12 +16,8 @@ interface TestConnectionRequest {
 
 const testMessages: ChatMessage[] = [
   {
-    role: "system",
-    content: "只输出 JSON。",
-  },
-  {
     role: "user",
-    content: `请输出 {"ok":true}`,
+    content: "请回复 ok",
   },
 ];
 
@@ -33,6 +29,7 @@ export async function POST(request: Request) {
 
     await callAIProvider({
       apiKey: resolved.apiKey,
+      baseURL: resolved.baseURL,
       messages: testMessages,
       model: resolved.model,
       provider: resolved.provider,

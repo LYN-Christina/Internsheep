@@ -1,6 +1,11 @@
 import type { UserRole } from "@/types/task";
 
-export type AIProvider = "openai" | "anthropic" | "deepseek" | "yunfeng";
+export type AIProvider =
+  | "openai"
+  | "anthropic"
+  | "deepseek"
+  | "openai-compatible"
+  | "yunfeng";
 export type ApiProvider = AIProvider;
 
 export interface Settings {

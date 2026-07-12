@@ -17,6 +17,8 @@ export type AIErrorCode =
   | "timeout"
   | "unsupported-provider"
   | "provider"
+  | "model-unavailable"
+  | "unparseable-response"
   | "invalid-json"
   | "empty-content"
   | "empty-tasks";
@@ -34,11 +36,132 @@ export class AIProviderError extends Error {
 }
 
 interface ProviderConfig {
+  baseURL: string;
   endpoint: string;
   model: string;
   headers: Record<string, string>;
   body(messages: ChatMessage[]): unknown;
   parse(data: unknown): string;
+}
+
+interface ProviderResponseSummary {
+  choicesLength: number;
+  hasChoices: boolean;
+  hasDataContent: boolean;
+  hasMessageContent: boolean;
+  keys: string[];
+  summary: string;
+}
+
+const DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "https://api.fengapi.top/v1";
+
+function normalizeOpenAICompatibleBaseURL(baseURL: string) {
+  const trimmed = baseURL.trim().replace(/\/+$/, "");
+
+  if (!trimmed) {
+    return DEFAULT_OPENAI_COMPATIBLE_BASE_URL;
+  }
+
+  if (trimmed.endsWith("/chat/completions")) {
+    return trimmed.slice(0, -"/chat/completions".length);
+  }
+
+  if (trimmed.endsWith("/v1")) {
+    return trimmed;
+  }
+
+  return `${trimmed}/v1`;
+}
+
+function buildChatCompletionsEndpoint(baseURL: string) {
+  return `${baseURL.replace(/\/+$/, "")}/chat/completions`;
+}
+
+function summarizeProviderData(data: unknown): ProviderResponseSummary {
+  const record =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  const firstChoice = choices[0] as
+    | { message?: { content?: unknown }; text?: unknown }
+    | undefined;
+  const dataRecord =
+    record.data && typeof record.data === "object" && !Array.isArray(record.data)
+      ? (record.data as Record<string, unknown>)
+      : {};
+  const providerMessage =
+    typeof (record.error as { message?: unknown } | undefined)?.message ===
+    "string"
+      ? (record.error as { message: string }).message
+      : typeof record.message === "string"
+        ? record.message
+        : "";
+
+  return {
+    choicesLength: choices.length,
+    hasChoices: choices.length > 0,
+    hasDataContent: typeof dataRecord.content === "string",
+    hasMessageContent: typeof firstChoice?.message?.content === "string",
+    keys: Object.keys(record),
+    summary: providerMessage.slice(0, 200),
+  };
+}
+
+function parseProviderContent(data: unknown) {
+  if (typeof data === "string") {
+    return data;
+  }
+
+  const response = data as {
+    choices?: Array<{
+      message?: { content?: unknown };
+      text?: unknown;
+    }>;
+    output_text?: unknown;
+    output?: unknown;
+    content?: unknown;
+    data?: { content?: unknown };
+  };
+  const content = response.choices?.[0]?.message?.content;
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        typeof part === "string"
+          ? part
+          : typeof (part as { text?: unknown })?.text === "string"
+            ? (part as { text: string }).text
+            : "",
+      )
+      .join("");
+  }
+
+  if (typeof response.choices?.[0]?.text === "string") {
+    return response.choices[0].text;
+  }
+
+  if (typeof response.output_text === "string") {
+    return response.output_text;
+  }
+
+  if (typeof response.output === "string") {
+    return response.output;
+  }
+
+  if (typeof response.content === "string") {
+    return response.content;
+  }
+
+  if (typeof response.data?.content === "string") {
+    return response.data.content;
+  }
+
+  return "";
 }
 
 export function getProviderMeta(provider: AIProvider) {
@@ -62,9 +185,18 @@ export function getProviderMeta(provider: AIProvider) {
 
   if (provider === "yunfeng") {
     return {
-      baseURL: "https://yun.feng.xx.kg/v1",
-      model: "gpt-5.5",
-      name: "yun.feng.xx.kg",
+      baseURL: DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+      model: "gpt-5.6",
+      name: "FengAPI",
+      supported: true,
+    };
+  }
+
+  if (provider === "openai-compatible") {
+    return {
+      baseURL: DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+      model: "gpt-5.6",
+      name: "OpenAI-compatible",
       supported: true,
     };
   }
@@ -80,26 +212,26 @@ export function getProviderMeta(provider: AIProvider) {
 function getProviderConfig(
   provider: AIProvider,
   apiKey: string,
+  baseURLOverride?: string,
   modelOverride?: string,
 ): ProviderConfig {
   const meta = getProviderMeta(provider);
 
   if (!meta.supported) {
     throw new AIProviderError(
-      `${meta.name} 暂未接入当前 MVP，请先选择 OpenAI、DeepSeek 或 yun.feng.xx.kg。`,
+      `${meta.name} 暂未接入当前 MVP，请先选择 OpenAI、DeepSeek 或 OpenAI-compatible。`,
       "unsupported-provider",
     );
   }
 
-  const endpointByProvider: Record<AIProvider, string> = {
-    anthropic: "https://api.anthropic.com/v1/messages",
-    deepseek: "https://api.deepseek.com/chat/completions",
-    openai: "https://api.openai.com/v1/chat/completions",
-    yunfeng: "https://yun.feng.xx.kg/v1/chat/completions",
-  };
+  const baseURL =
+    provider === "openai-compatible" || provider === "yunfeng"
+      ? normalizeOpenAICompatibleBaseURL(baseURLOverride || meta.baseURL)
+      : meta.baseURL;
 
   return {
-    endpoint: endpointByProvider[provider],
+    endpoint: buildChatCompletionsEndpoint(baseURL),
+    baseURL,
     model: modelOverride?.trim() || meta.model,
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -117,18 +249,14 @@ function getProviderConfig(
         temperature: 0.2,
       };
 
-      if (provider !== "yunfeng") {
+      if (provider !== "yunfeng" && provider !== "openai-compatible") {
         body.response_format = { type: "json_object" };
       }
 
       return body;
     },
     parse(data) {
-      const response = data as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-
-      return response.choices?.[0]?.message?.content ?? "";
+      return parseProviderContent(data);
     },
   };
 }
@@ -145,10 +273,56 @@ async function readProviderError(response: Response) {
   }
 }
 
+function getProviderErrorText(details: unknown) {
+  if (!details) {
+    return "";
+  }
+
+  if (typeof details === "string") {
+    return details;
+  }
+
+  const data = details as {
+    error?: { code?: unknown; message?: unknown; type?: unknown };
+    message?: unknown;
+  };
+
+  return [
+    typeof data.error?.code === "string" ? data.error.code : "",
+    typeof data.error?.message === "string" ? data.error.message : "",
+    typeof data.error?.type === "string" ? data.error.type : "",
+    typeof data.message === "string" ? data.message : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function isModelError(details: unknown) {
+  const text = getProviderErrorText(details);
+
+  return (
+    text.includes("model") ||
+    text.includes("模型") ||
+    text.includes("not found") ||
+    text.includes("does not exist") ||
+    text.includes("invalid_model")
+  );
+}
+
 function mapHttpError(status: number, details: unknown) {
+  if (isModelError(details)) {
+    return new AIProviderError(
+      "当前模型名不可用，请检查第三方平台支持的模型名。",
+      "model-unavailable",
+      status,
+      details,
+    );
+  }
+
   if (status === 400) {
     return new AIProviderError(
-      "AI 请求格式不正确，请检查 Provider 和模型配置。",
+      "请求参数错误，请检查模型名或接口地址。",
       "bad-request",
       status,
       details,
@@ -157,16 +331,34 @@ function mapHttpError(status: number, details: unknown) {
 
   if (status === 401) {
     return new AIProviderError(
-      "API Key 无效，请在我的设置中检查后重试。",
+      "API Key 无效或未授权，请在我的设置中检查后重试。",
       "invalid-api-key",
       status,
       details,
     );
   }
 
-  if (status === 403 || status === 429) {
+  if (status === 403) {
     return new AIProviderError(
-      "权限不足、余额不足或请求额度受限，请检查服务商账户状态。",
+      "没有权限访问该模型，请检查服务商账户权限。",
+      "permission-or-quota",
+      status,
+      details,
+    );
+  }
+
+  if (status === 404) {
+    return new AIProviderError(
+      "接口地址或模型不存在，请检查 Base URL 和模型名。",
+      "model-unavailable",
+      status,
+      details,
+    );
+  }
+
+  if (status === 429) {
+    return new AIProviderError(
+      "额度不足或请求过于频繁，请检查服务商账户状态。",
       "permission-or-quota",
       status,
       details,
@@ -175,7 +367,7 @@ function mapHttpError(status: number, details: unknown) {
 
   if (status >= 500) {
     return new AIProviderError(
-      "AI 服务暂时不可用，请稍后重试。",
+      "模型服务商暂时不可用，请稍后重试。",
       "server-error",
       status,
       details,
@@ -225,20 +417,36 @@ function getFetchFailureError(error: unknown, provider: AIProvider, endpoint: st
   }
 
   return new AIProviderError(
-    `无法连接到 ${meta.name} API（${host}）。如果浏览器直连不可用，请使用本地后端代理或检查网络代理设置。`,
+    `无法连接到 ${meta.name} API（${host}）。请检查网络代理或稍后重试。`,
     "network",
     502,
     { causeCode, causeMessage, error: String(error) },
   );
 }
 
+function shouldRetryAIRequest(error: unknown) {
+  if (!(error instanceof AIProviderError)) {
+    return false;
+  }
+
+  return (
+    error.code === "server-error" ||
+    error.code === "timeout" ||
+    error.code === "empty-content" ||
+    error.code === "unparseable-response"
+  );
+}
+
 export function serializeAIError(error: unknown) {
-  console.error("AI request failed", error);
+  console.error("AI request failed", {
+    code: error instanceof AIProviderError ? error.code : "unknown",
+    message: error instanceof Error ? error.message : String(error),
+    status: error instanceof AIProviderError ? error.status : undefined,
+  });
 
   if (error instanceof AIProviderError) {
     return {
       code: error.code,
-      details: error.details,
       message: error.message,
       status: error.status,
     };
@@ -253,12 +461,13 @@ export function serializeAIError(error: unknown) {
 
   return {
     code: "network" satisfies AIErrorCode,
-    message: "网络连接失败，请检查网络后重试。",
+    message: "网络连接失败，请稍后重试。",
   };
 }
 
 export async function callAIProvider(params: {
   apiKey: string;
+  baseURL?: string;
   messages: ChatMessage[];
   model?: string;
   provider: AIProvider;
@@ -270,40 +479,75 @@ export async function callAIProvider(params: {
     throw new AIProviderError("请先在我的设置中配置 API Key。", "missing-api-key");
   }
 
-  const config = getProviderConfig(params.provider, apiKey, params.model);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45000);
+  const config = getProviderConfig(
+    params.provider,
+    apiKey,
+    params.baseURL,
+    params.model,
+  );
+  const maxAttempts = 2;
 
-  try {
-    const response = await fetch(config.endpoint, {
-      body: JSON.stringify(config.body(params.messages)),
-      headers: config.headers,
-      method: "POST",
-      signal: controller.signal,
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45000);
 
-    if (!response.ok) {
-      throw mapHttpError(response.status, await readProviderError(response));
+    try {
+      const response = await fetch(config.endpoint, {
+        body: JSON.stringify(config.body(params.messages)),
+        headers: config.headers,
+        method: "POST",
+        signal: controller.signal,
+      });
+      const data = await readProviderError(response);
+      const summary = summarizeProviderData(data);
+
+      if (!response.ok) {
+        throw mapHttpError(response.status, data);
+      }
+
+      const content = config.parse(data);
+
+      if (!content.trim()) {
+        const hasKnownContainer =
+          summary.hasChoices ||
+          summary.hasDataContent ||
+          summary.keys.some((key) =>
+            ["output_text", "output", "content", "data"].includes(key),
+          );
+
+        throw new AIProviderError(
+          hasKnownContainer
+            ? "AI 返回内容为空，请检查模型名或返回格式。"
+            : "AI 返回格式无法解析，请检查服务商兼容性。",
+          hasKnownContainer ? "empty-content" : "unparseable-response",
+          502,
+          {
+            choicesLength: summary.choicesLength,
+            hasMessageContent: summary.hasMessageContent,
+            keys: summary.keys,
+            safeSummary: summary.summary,
+          },
+        );
+      }
+
+      return content;
+    } catch (error) {
+      const normalizedError =
+        error instanceof AIProviderError
+          ? error
+          : error instanceof DOMException && error.name === "AbortError"
+            ? new AIProviderError("AI 请求超时，请稍后重试。", "timeout")
+            : getFetchFailureError(error, params.provider, config.endpoint);
+
+      if (attempt < maxAttempts && shouldRetryAIRequest(normalizedError)) {
+        continue;
+      }
+
+      throw normalizedError;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const content = config.parse(await response.json());
-
-    if (!content.trim()) {
-      throw new AIProviderError("AI 返回内容为空，请稍后重试。", "empty-content");
-    }
-
-    return content;
-  } catch (error) {
-    if (error instanceof AIProviderError) {
-      throw error;
-    }
-
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new AIProviderError("AI 请求超时，请稍后重试。", "timeout");
-    }
-
-    throw getFetchFailureError(error, params.provider, config.endpoint);
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw new AIProviderError("AI 请求失败，请稍后重试。", "provider");
 }

@@ -28,6 +28,7 @@ export async function POST(request: Request) {
 
     const result = await extractTasksWithProvider({
       apiKey: resolved.apiKey,
+      baseURL: resolved.baseURL,
       model: resolved.model,
       provider: resolved.provider,
       role: resolved.payload?.role ?? "intern",
