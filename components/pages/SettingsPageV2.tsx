@@ -1,7 +1,7 @@
 "use client";
 
-import { Download, Eye, EyeOff, RefreshCw, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { Download, Eye, EyeOff, RefreshCw, Settings2, Upload } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { SettingsPageProps } from "@/lib/page-types";
@@ -16,13 +16,16 @@ export function SettingsPageV2({
   onApiKeyChange,
   onClearData,
   onExportData,
+  onImportData,
   onLengthChange,
   onProviderChange,
   onToneChange,
+  remainingAudioTranscription,
   remainingTaskExtraction,
   remainingWeeklyReport,
   settings,
 }: SettingsPageProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
@@ -65,6 +68,16 @@ export function SettingsPageV2({
     }
   }
 
+  function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      onImportData(file);
+    }
+
+    event.target.value = "";
+  }
+
   return (
     <section className="rounded-lg border border-[var(--border)] bg-white p-4">
       <div className="flex items-center gap-2">
@@ -83,7 +96,7 @@ export function SettingsPageV2({
           如果你使用免费体验额度，AI 请求将通过服务端代理完成；如果你配置自己的 API Key，将优先使用你的 Key。
         </p>
         <p className="mt-1">
-          免费体验额度：录音纪要每天 2 次，今日剩余 {remainingTaskExtraction} 次；本周周报每周 2 次，本周剩余 {remainingWeeklyReport} 次。
+          免费体验额度：语音转文字每天 2 次，今日剩余 {remainingAudioTranscription} 次；AI 提取任务每天 2 次，今日剩余 {remainingTaskExtraction} 次；本周周报每周 2 次，本周剩余 {remainingWeeklyReport} 次。
         </p>
       </div>
 
@@ -194,6 +207,21 @@ export function SettingsPageV2({
         <Button type="button" variant="secondary" onClick={onExportData}>
           <Download aria-hidden="true" className="size-4" />
           导出我的数据
+        </Button>
+        <input
+          ref={fileInputRef}
+          accept="application/json,.json"
+          className="hidden"
+          type="file"
+          onChange={handleImportFileChange}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload aria-hidden="true" className="size-4" />
+          导入我的数据
         </Button>
         <Button type="button" variant="danger" onClick={onClearData}>
           清除所有数据

@@ -36,6 +36,7 @@ export interface RecordingNotesPageProps {
   recordingElapsedSeconds: number;
   recordingNotice: string | null;
   isUsingUserApiKey: boolean;
+  remainingAudioTranscription: number;
   remainingTaskExtraction: number;
   onCancelRecording: () => void;
   onAddDraftTask: () => void;
@@ -74,6 +75,7 @@ export interface WeeklyReportPageProps {
 
 export interface SettingsPageProps {
   settings: Settings;
+  remainingAudioTranscription: number;
   remainingTaskExtraction: number;
   remainingWeeklyReport: number;
   onProviderChange: (provider: ApiProvider) => void;
@@ -81,5 +83,6 @@ export interface SettingsPageProps {
   onToneChange: (tone: number) => void;
   onLengthChange: (length: number) => void;
   onExportData: () => void;
+  onImportData: (file: File) => void;
   onClearData: () => void;
 }

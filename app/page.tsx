@@ -20,12 +20,15 @@ import type { AppView } from "@/lib/page-types";
 import { extractTasksFromText } from "@/services/ai/taskExtraction";
 import { generateWeeklyReport } from "@/services/ai/weeklyReport";
 import { clearAllData } from "@/services/storage/appStorage";
-import { getTasks } from "@/services/storage/taskStorage";
+import { saveReports } from "@/services/storage/reportStorage";
+import { getTasks, saveTasks } from "@/services/storage/taskStorage";
 import type {
   ApiProvider,
   DraftTask,
   ExtractionResult,
+  Report,
   Role,
+  Settings,
   Task,
 } from "@/types";
 import { getCurrentWeekRange, getTodayISO } from "@/utils/date";
@@ -37,6 +40,52 @@ const manualCategories: Record<Role, string[]> = {
 const MAX_AUDIO_UPLOAD_BYTES = 4 * 1024 * 1024;
 const TRANSCRIBE_FALLBACK_ERROR =
   "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
+
+interface BackupData {
+  settings?: Partial<Settings>;
+  tasks?: Partial<Record<Role, Task[]>>;
+  reports?: Report[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseBackupData(value: unknown): BackupData {
+  if (!isRecord(value)) {
+    throw new Error("导入文件格式不正确，请选择 Internsheep 导出的 JSON 文件。");
+  }
+
+  const settings = isRecord(value.settings)
+    ? (value.settings as Partial<Settings>)
+    : undefined;
+  const tasks = isRecord(value.tasks)
+    ? {
+        intern: Array.isArray(value.tasks.intern)
+          ? (value.tasks.intern as Task[])
+          : undefined,
+        student: Array.isArray(value.tasks.student)
+          ? (value.tasks.student as Task[])
+          : undefined,
+      }
+    : undefined;
+  const reports = Array.isArray(value.reports)
+    ? (value.reports as Report[])
+    : undefined;
+
+  if (!settings && !tasks && !reports) {
+    throw new Error("导入文件中没有可恢复的数据。");
+  }
+
+  return { reports, settings, tasks };
+}
+
+function mergeById<T extends { id: string }>(currentItems: T[], importedItems: T[]) {
+  const currentIds = new Set(currentItems.map((item) => item.id));
+  const newItems = importedItems.filter((item) => !currentIds.has(item.id));
+
+  return [...currentItems, ...newItems];
+}
 
 export default function HomePage() {
   const [view, setView] = useState<AppView>("today");
@@ -60,10 +109,13 @@ export default function HomePage() {
   } = useTasks(role, isReady);
   const { reports, saveReport } = useReports(isReady);
   const {
+    canUseAudioTranscription,
     canUseTaskExtraction,
     canUseWeeklyReport,
+    incrementAudioTranscription,
     incrementTaskExtraction,
     incrementWeeklyReport,
+    remainingAudioTranscription,
     remainingTaskExtraction,
     remainingWeeklyReport,
   } = useUsageLimit(isReady);
@@ -346,6 +398,43 @@ export default function HomePage() {
     URL.revokeObjectURL(url);
   }
 
+  async function importAllData(file: File) {
+    setErrorMessage(null);
+
+    try {
+      const raw = await file.text();
+      const backup = parseBackupData(JSON.parse(raw) as unknown);
+      const shouldImport = window.confirm(
+        "导入会合并任务和周报，不会覆盖当前浏览器中的已有数据、设置或 API Key。建议先导出当前数据备份，确认继续导入吗？",
+      );
+
+      if (!shouldImport) {
+        return;
+      }
+
+      if (backup.tasks?.intern) {
+        saveTasks("intern", mergeById(getTasks("intern"), backup.tasks.intern));
+      }
+
+      if (backup.tasks?.student) {
+        saveTasks("student", mergeById(getTasks("student"), backup.tasks.student));
+      }
+
+      if (backup.reports) {
+        saveReports(mergeById(reports, backup.reports));
+      }
+
+      window.alert("数据已合并导入，将刷新页面加载最新内容。");
+      window.location.reload();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "导入失败，请确认文件是 Internsheep 导出的 JSON。",
+      );
+    }
+  }
+
   function clearData() {
     if (window.confirm("确认清除所有本地数据？")) {
       clearAllData();
@@ -444,6 +533,12 @@ export default function HomePage() {
       return;
     }
 
+    if (!canUseAudioTranscription) {
+      setErrorMessage("今日免费语音转文字次数已用完。你可以直接手动输入或粘贴会议内容。");
+      setRecordingNotice("音频仍已保留。你可以明天继续转写，或直接手动输入 / 粘贴会议内容。");
+      return;
+    }
+
     setIsTranscribing(true);
     setRecordingNotice("正在转写录音，请稍等…");
 
@@ -481,6 +576,7 @@ export default function HomePage() {
 
         return current ? `${current}\n${next}` : next;
       });
+      incrementAudioTranscription();
       setRecordingNotice("录音已转写到文本框，你可以继续编辑后再提取任务。");
     } catch (error) {
       setErrorMessage(
@@ -543,6 +639,7 @@ export default function HomePage() {
           recordingMimeType={recordingMimeType}
           recordingElapsedSeconds={recordingElapsedSeconds}
           recordingNotice={recordingNotice}
+          remainingAudioTranscription={remainingAudioTranscription}
           remainingTaskExtraction={remainingTaskExtraction}
           role={role}
           onCancelRecording={cancelCurrentRecording}
@@ -587,12 +684,14 @@ export default function HomePage() {
 
       {view === "settings" ? (
         <SettingsPageV2
+          remainingAudioTranscription={remainingAudioTranscription}
           remainingTaskExtraction={remainingTaskExtraction}
           remainingWeeklyReport={remainingWeeklyReport}
           settings={settings}
           onApiKeyChange={(apiKey) => updateSettings({ ...settings, apiKey })}
           onClearData={clearData}
           onExportData={exportAllData}
+          onImportData={importAllData}
           onLengthChange={(length) =>
             updateSettings({
               ...settings,

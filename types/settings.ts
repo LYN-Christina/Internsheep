@@ -27,6 +27,10 @@ export interface UsageRecord {
     date: string;
     count: number;
   };
+  audioTranscription: {
+    date: string;
+    count: number;
+  };
   weeklyReport: {
     weekStart: string;
     count: number;

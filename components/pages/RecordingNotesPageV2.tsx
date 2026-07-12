@@ -31,14 +31,13 @@ export function RecordingNotesPageV2({
   recordingMimeType,
   recordingElapsedSeconds,
   recordingNotice,
+  remainingAudioTranscription,
   remainingTaskExtraction,
   role,
 }: RecordingNotesPageProps) {
   const usageMessage = isUsingUserApiKey
-    ? "当前使用自用 API Key，不占用免费体验额度。"
-    : remainingTaskExtraction > 0
-      ? `免费体验：今日还可 AI 提取 ${remainingTaskExtraction} 次。`
-      : "今日免费 AI 提取次数已用完。你可以在「我的设置」中配置自己的 API Key 后继续使用。";
+    ? `当前使用自用 API Key，AI 提取不占用免费额度。语音转文字今日还可用 ${remainingAudioTranscription} 次。`
+    : `免费体验：语音转文字今日还可用 ${remainingAudioTranscription} 次；AI 提取今日还可用 ${remainingTaskExtraction} 次。`;
   const isWebmRecording = recordingMimeType?.includes("webm") ?? false;
 
   return (
