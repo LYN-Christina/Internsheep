@@ -10,9 +10,11 @@ export function shouldConvertToTencentWav(mimeType = "", fileName = "") {
     normalizedMimeType.includes("mp4") ||
     normalizedMimeType.includes("m4a") ||
     normalizedMimeType.includes("aac") ||
+    normalizedMimeType.includes("webm") ||
     normalizedFileName.endsWith(".mp4") ||
     normalizedFileName.endsWith(".m4a") ||
-    normalizedFileName.endsWith(".aac")
+    normalizedFileName.endsWith(".aac") ||
+    normalizedFileName.endsWith(".webm")
   );
 }
 

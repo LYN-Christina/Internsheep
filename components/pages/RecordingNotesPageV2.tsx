@@ -119,7 +119,7 @@ export function RecordingNotesPageV2({
               ? " 当前格式会在转写前转换为 WAV，转换后文件会变大，建议按 1-2 分钟分段。"
               : ""}
             {isWebmRecording
-              ? " 当前格式可能不被腾讯云极速识别支持，转写失败时请改用手动输入或换手机自带浏览器。"
+              ? " 当前 WebM 格式会先转换后再提交腾讯云。"
               : ""}
           </p>
         ) : null}
