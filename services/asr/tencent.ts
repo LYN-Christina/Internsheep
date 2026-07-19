@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHash, createHmac } from "crypto";
 
 import {
   ASRError,
@@ -6,10 +6,13 @@ import {
   type TranscribeAudioResult,
 } from "@/services/asr/types";
 
-const TENCENT_FLASH_HOST = "asr.cloud.tencent.com";
+const TENCENT_API_HOST = "asr.tencentcloudapi.com";
+const TENCENT_API_SERVICE = "asr";
+const TENCENT_API_VERSION = "2019-06-14";
 const DEFAULT_TENCENT_REGION = "ap-shanghai";
 const DEFAULT_TENCENT_ENGINE = "16k_zh";
 const DEFAULT_TENCENT_ASR_TYPE = "flash";
+const MAX_SENTENCE_RECOGNITION_BASE64_BYTES = 3 * 1024 * 1024;
 
 interface TencentASRConfig {
   appId: string;
@@ -20,15 +23,19 @@ interface TencentASRConfig {
   secretKey: string;
 }
 
-interface TencentFlashResponse {
-  code?: number;
-  message?: string;
-  request_id?: string;
-  flash_result?: Array<{
-    channel_id?: number;
-    sentence_list?: Array<{ text?: string }>;
-    text?: string;
-  }>;
+interface TencentAPIResponse<T> {
+  Response?: T & {
+    Error?: {
+      Code?: string;
+      Message?: string;
+    };
+    RequestId?: string;
+  };
+}
+
+interface SentenceRecognitionResponse {
+  AudioDuration?: number;
+  Result?: string;
 }
 
 function readEnvLine(name: string) {
@@ -64,7 +71,7 @@ function getConfig(): TencentASRConfig {
 
   if (!/^\d+$/.test(appId)) {
     throw new ASRError(
-      "腾讯云语音转文字参数配置有误，请联系开发者检查 TENCENT_APP_ID。",
+      "语音转文字参数配置有误，请联系开发者检查 TENCENT_APP_ID。",
       400,
       "tencent-bad-config",
       {
@@ -116,96 +123,151 @@ function getVoiceFormat(mimeType = "", fileName = "") {
   );
 }
 
-function buildQuery(params: Record<string, string>) {
-  return Object.keys(params)
-    .sort()
-    .map((key) => `${key}=${encodeURIComponent(params[key])}`)
-    .join("&");
+function sha256Hex(value: string | Buffer) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
-function signTencentFlashRequest(params: {
-  path: string;
-  query: string;
-  secretKey: string;
+function hmacSha256(key: string | Buffer, value: string) {
+  return createHmac("sha256", key).update(value).digest();
+}
+
+function hmacSha256Hex(key: string | Buffer, value: string) {
+  return createHmac("sha256", key).update(value).digest("hex");
+}
+
+function getUTCDate(timestamp: number) {
+  return new Date(timestamp * 1000).toISOString().slice(0, 10);
+}
+
+function signTencentAPIRequest(params: {
+  action: string;
+  body: string;
+  config: TencentASRConfig;
+  timestamp: number;
 }) {
-  const signText = `POST${TENCENT_FLASH_HOST}${params.path}?${params.query}`;
+  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${TENCENT_API_HOST}\n`;
+  const signedHeaders = "content-type;host";
+  const canonicalRequest = [
+    "POST",
+    "/",
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    sha256Hex(params.body),
+  ].join("\n");
+  const date = getUTCDate(params.timestamp);
+  const credentialScope = `${date}/${TENCENT_API_SERVICE}/tc3_request`;
+  const stringToSign = [
+    "TC3-HMAC-SHA256",
+    String(params.timestamp),
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+  const secretDate = hmacSha256(`TC3${params.config.secretKey}`, date);
+  const secretService = hmacSha256(secretDate, TENCENT_API_SERVICE);
+  const secretSigning = hmacSha256(secretService, "tc3_request");
+  const signature = hmacSha256Hex(secretSigning, stringToSign);
 
-  return createHmac("sha1", params.secretKey)
-    .update(signText)
-    .digest("base64");
+  return `TC3-HMAC-SHA256 Credential=${params.config.secretId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 }
 
-function getTencentErrorMessage(message?: string) {
-  if (!message) {
-    return "腾讯云语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
-  }
+function getTencentAPIErrorMessage(code?: string, message?: string) {
+  const normalizedCode = code?.toLowerCase() ?? "";
+  const normalizedMessage = message?.toLowerCase() ?? "";
 
-  const normalized = message.toLowerCase();
-
-  if (normalized.includes("signature") || normalized.includes("secretid")) {
+  if (
+    normalizedCode.includes("authfailure") ||
+    normalizedCode.includes("unauthorized") ||
+    normalizedMessage.includes("signature") ||
+    normalizedMessage.includes("secretid")
+  ) {
     return "语音转文字服务鉴权失败，请联系开发者检查腾讯云密钥。";
   }
 
-  if (normalized.includes("format") || normalized.includes("voice_format")) {
-    return "当前录音格式暂不支持转写，请尝试换用手机自带浏览器或使用手动输入。";
-  }
-
   if (
-    normalized.includes("param") ||
-    normalized.includes("engine_type") ||
-    normalized.includes("appid")
+    normalizedCode.includes("invalidparameter") ||
+    normalizedCode.includes("unsupportedoperation") ||
+    normalizedMessage.includes("engine") ||
+    normalizedMessage.includes("voiceformat") ||
+    normalizedMessage.includes("format")
   ) {
     return "语音转文字参数配置有误，请联系开发者检查腾讯云配置。";
   }
 
-  return "腾讯云语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
+  if (
+    normalizedCode.includes("limitexceeded") ||
+    normalizedMessage.includes("too large") ||
+    normalizedMessage.includes("exceed")
+  ) {
+    return "录音文件较大，建议缩短录音或分段记录。";
+  }
+
+  return "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
 }
 
-function getTencentErrorCode(message?: string) {
+function getTencentAPIErrorCode(code?: string, message?: string) {
+  const normalizedCode = code?.toLowerCase() ?? "";
   const normalizedMessage = message?.toLowerCase() ?? "";
 
   if (
+    normalizedCode.includes("authfailure") ||
+    normalizedCode.includes("unauthorized") ||
     normalizedMessage.includes("signature") ||
-    normalizedMessage.includes("secretid") ||
-    normalizedMessage.includes("auth")
+    normalizedMessage.includes("secretid")
   ) {
     return "tencent-auth-failed";
   }
 
   if (
-    normalizedMessage.includes("format") ||
-    normalizedMessage.includes("voice_format")
+    normalizedCode.includes("invalidparameter") ||
+    normalizedCode.includes("unsupportedoperation") ||
+    normalizedMessage.includes("engine") ||
+    normalizedMessage.includes("voiceformat") ||
+    normalizedMessage.includes("format")
   ) {
-    return "tencent-unsupported-format";
+    return "tencent-bad-config";
   }
 
   if (
-    normalizedMessage.includes("param") ||
-    normalizedMessage.includes("engine_type") ||
-    normalizedMessage.includes("appid")
+    normalizedCode.includes("limitexceeded") ||
+    normalizedMessage.includes("too large") ||
+    normalizedMessage.includes("exceed")
   ) {
-    return "tencent-bad-config";
+    return "audio-too-large";
   }
 
   return "tencent-provider-error";
 }
 
-function parseTencentText(data: TencentFlashResponse) {
-  const text = data.flash_result
-    ?.flatMap((result) => [
-      result.text,
-      ...(result.sentence_list?.map((sentence) => sentence.text) ?? []),
-    ])
-    .filter((part): part is string => Boolean(part?.trim()))
-    .join("\n")
-    .trim();
+function parseSentenceRecognitionText(
+  data: TencentAPIResponse<SentenceRecognitionResponse>,
+) {
+  const response = data.Response;
+
+  if (response?.Error) {
+    throw new ASRError(
+      getTencentAPIErrorMessage(response.Error.Code, response.Error.Message),
+      502,
+      getTencentAPIErrorCode(response.Error.Code, response.Error.Message),
+      {
+        code: response.Error.Code,
+        message: response.Error.Message,
+        requestId: response.RequestId,
+      },
+    );
+  }
+
+  const text = response?.Result?.trim();
 
   if (!text) {
     throw new ASRError(
       "腾讯云语音转文字结果为空，请重试，或直接手动输入 / 粘贴会议内容。",
       502,
       "tencent-empty-result",
-      { requestId: data.request_id },
+      {
+        audioDuration: response?.AudioDuration,
+        requestId: response?.RequestId,
+      },
     );
   }
 
@@ -223,45 +285,64 @@ export async function transcribeWithTencent({
 
   if (config.asrType !== "flash") {
     throw new ASRError(
-      "当前测试版仅支持腾讯云极速识别 flash，请联系开发者检查 TENCENT_ASR_TYPE。",
+      "当前测试版仅支持腾讯云短音频识别，请联系开发者检查 TENCENT_ASR_TYPE。",
       400,
       "tencent-unsupported-type",
     );
   }
 
   const voiceFormat = getVoiceFormat(actualMimeType, actualFileName);
-  const timestamp = Math.floor(Date.now() / 1000);
-  const path = `/asr/flash/v1/${config.appId}`;
-  const query = buildQuery({
-    engine_type: config.engine,
-    expired: String(timestamp + 3600),
-    filter_dirty: "0",
-    filter_modal: "0",
-    filter_punc: "0",
-    first_channel_only: "1",
-    secretid: config.secretId,
-    speaker_diarization: "0",
-    timestamp: String(timestamp),
-    voice_format: voiceFormat,
-    word_info: "0",
-  });
-  const signature = signTencentFlashRequest({
-    path,
-    query,
-    secretKey: config.secretKey,
-  });
-  const requestUrl = `https://${TENCENT_FLASH_HOST}${path}?${query}`;
   const audioBuffer = Buffer.from(await audio.arrayBuffer());
+  const audioBase64 = audioBuffer.toString("base64");
+  const audioBase64Bytes = Buffer.byteLength(audioBase64, "utf8");
+
+  if (audioBase64Bytes > MAX_SENTENCE_RECOGNITION_BASE64_BYTES) {
+    throw new ASRError(
+      "录音文件较大，建议缩短录音或分段记录。",
+      413,
+      "audio-too-large",
+      {
+        audioBase64Bytes,
+        audioBytes: audioBuffer.length,
+        limitBytes: MAX_SENTENCE_RECOGNITION_BASE64_BYTES,
+        voiceFormat,
+      },
+    );
+  }
+
+  const body = JSON.stringify({
+    ConvertNumMode: 1,
+    Data: audioBase64,
+    DataLen: audioBuffer.length,
+    EngSerViceType: config.engine,
+    FilterDirty: 0,
+    FilterModal: 0,
+    FilterPunc: 0,
+    ProjectId: 0,
+    SourceType: 1,
+    SubServiceType: 2,
+    VoiceFormat: voiceFormat,
+    WordInfo: 0,
+  });
+  const timestamp = Math.floor(Date.now() / 1000);
+  const authorization = signTencentAPIRequest({
+    action: "SentenceRecognition",
+    body,
+    config,
+    timestamp,
+  });
   let response: Response;
 
   try {
-    response = await fetch(requestUrl, {
-      body: audioBuffer,
+    response = await fetch(`https://${TENCENT_API_HOST}`, {
+      body,
       headers: {
-        Authorization: signature,
-        "Content-Length": String(audioBuffer.length),
-        "Content-Type": "application/octet-stream",
-        "X-Tencent-Region": config.region,
+        Authorization: authorization,
+        "Content-Type": "application/json; charset=utf-8",
+        "X-TC-Action": "SentenceRecognition",
+        "X-TC-Region": config.region,
+        "X-TC-Timestamp": String(timestamp),
+        "X-TC-Version": TENCENT_API_VERSION,
       },
       method: "POST",
     });
@@ -269,7 +350,8 @@ export async function transcribeWithTencent({
     console.warn("Tencent ASR network error", {
       errorMessage: error instanceof Error ? error.message : String(error),
       errorName: error instanceof Error ? error.name : typeof error,
-      host: TENCENT_FLASH_HOST,
+      host: TENCENT_API_HOST,
+      interface: "SentenceRecognition",
       voiceFormat,
     });
 
@@ -280,48 +362,57 @@ export async function transcribeWithTencent({
       {
         errorMessage: error instanceof Error ? error.message : String(error),
         errorName: error instanceof Error ? error.name : typeof error,
-        host: TENCENT_FLASH_HOST,
+        host: TENCENT_API_HOST,
+        interface: "SentenceRecognition",
         voiceFormat,
       },
     );
   }
 
   const responseText = await response.text();
-  let data: TencentFlashResponse | null = null;
+  let data: TencentAPIResponse<SentenceRecognitionResponse> | null = null;
 
   try {
-    data = JSON.parse(responseText) as TencentFlashResponse;
+    data = JSON.parse(responseText) as TencentAPIResponse<SentenceRecognitionResponse>;
   } catch {
     data = null;
   }
 
-  if (!response.ok || !data || data.code !== 0) {
-    const code = getTencentErrorCode(data?.message);
-
+  if (!response.ok || !data?.Response) {
     console.warn("Tencent ASR provider error", {
-      code: data?.code,
       config: getConfigSummary(config),
-      message: data?.message,
+      interface: "SentenceRecognition",
       responseBodyPreview: data ? undefined : responseText.slice(0, 240),
-      requestId: data?.request_id,
       status: response.status,
       voiceFormat,
     });
 
     throw new ASRError(
-      getTencentErrorMessage(data?.message),
+      "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。",
       response.ok ? 502 : response.status,
-      code,
+      "tencent-provider-error",
       {
-        code: data?.code,
         config: getConfigSummary(config),
-        message: data?.message,
+        interface: "SentenceRecognition",
         responseBodyPreview: data ? undefined : responseText.slice(0, 240),
-        requestId: data?.request_id,
         status: response.status,
       },
     );
   }
 
-  return { text: parseTencentText(data) };
+  try {
+    return { text: parseSentenceRecognitionText(data) };
+  } catch (error) {
+    if (error instanceof ASRError) {
+      console.warn("Tencent ASR provider error", {
+        config: getConfigSummary(config),
+        details: error.details,
+        interface: "SentenceRecognition",
+        status: error.status,
+        voiceFormat,
+      });
+    }
+
+    throw error;
+  }
 }
