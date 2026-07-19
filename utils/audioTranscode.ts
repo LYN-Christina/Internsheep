@@ -58,6 +58,42 @@ function encodeMonoWav(samples: Float32Array, sampleRate: number) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
+function resampleToTargetRate(samples: Float32Array, sourceSampleRate: number) {
+  if (sourceSampleRate === TARGET_SAMPLE_RATE) {
+    return samples;
+  }
+
+  const ratio = sourceSampleRate / TARGET_SAMPLE_RATE;
+  const targetLength = Math.max(1, Math.round(samples.length / ratio));
+  const result = new Float32Array(targetLength);
+
+  for (let index = 0; index < targetLength; index += 1) {
+    const start = Math.floor(index * ratio);
+    const end = Math.min(Math.floor((index + 1) * ratio), samples.length);
+    let sum = 0;
+    let count = 0;
+
+    for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
+      sum += samples[sourceIndex];
+      count += 1;
+    }
+
+    result[index] = count ? sum / count : samples[start] ?? 0;
+  }
+
+  return result;
+}
+
+export function encodePcmToTencentWav(
+  samples: Float32Array,
+  sourceSampleRate: number,
+) {
+  return encodeMonoWav(
+    resampleToTargetRate(samples, sourceSampleRate),
+    TARGET_SAMPLE_RATE,
+  );
+}
+
 export async function convertAudioBlobToTencentWav(audioBlob: Blob) {
   const audioWindow = window as Window &
     typeof globalThis & {

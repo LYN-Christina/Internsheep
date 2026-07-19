@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { encodePcmToTencentWav } from "@/utils/audioTranscode";
+
 export const AUTO_TRANSCRIBE_INTERVAL_SECONDS = 30;
 export const MAX_RECORDING_SECONDS = 5 * 60;
 export const RECORDING_WARNING_SECONDS = 4 * 60;
@@ -66,17 +68,18 @@ export function useAudioRecorder({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [mimeType, setMimeType] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
-  const currentSegmentChunksRef = useRef<BlobPart[]>([]);
   const elapsedSecondsRef = useRef(0);
   const hasShownWarningRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
-  const isRotatingSegmentRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const segmentTimeoutRef = useRef<number | null>(null);
+  const pcmSampleRateRef = useRef(0);
+  const pcmSamplesRef = useRef<Float32Array[]>([]);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const segmentIndexRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
-  const shouldContinueRecordingRef = useRef(false);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const stopReasonRef = useRef<StopReason>("manual");
   const streamRef = useRef<MediaStream | null>(null);
   const stopResolverRef = useRef<((blob: Blob | null) => void) | null>(null);
@@ -88,26 +91,18 @@ export function useAudioRecorder({
     }
   }
 
-  function clearSegmentTimer() {
-    if (segmentTimeoutRef.current !== null) {
-      window.clearTimeout(segmentTimeoutRef.current);
-      segmentTimeoutRef.current = null;
-    }
-  }
-
   function finishRecording(blob: Blob | null) {
+    stopPcmRecorder();
     stopTracks(streamRef.current);
     streamRef.current = null;
     mediaRecorderRef.current = null;
     clearRecordingTimer();
-    clearSegmentTimer();
-    shouldContinueRecordingRef.current = false;
     setIsRecording(false);
     stopResolverRef.current?.(blob);
     stopResolverRef.current = null;
   }
 
-  function emitAudioSegment(blob: Blob, supportedMimeType: string) {
+  function emitAudioSegment(blob: Blob, segmentMimeType: string) {
     const sessionId = sessionIdRef.current;
 
     if (!sessionId || blob.size === 0 || stopReasonRef.current === "cancel") {
@@ -118,10 +113,86 @@ export function useAudioRecorder({
     onAudioSegment?.({
       blob,
       elapsedSeconds: elapsedSecondsRef.current,
-      mimeType: supportedMimeType,
+      mimeType: segmentMimeType,
       segmentId: `segment-${segmentIndexRef.current}`,
       sessionId,
     });
+  }
+
+  function flushPcmSegment() {
+    if (!pcmSamplesRef.current.length || !pcmSampleRateRef.current) {
+      return;
+    }
+
+    const sampleCount = pcmSamplesRef.current.reduce(
+      (total, samples) => total + samples.length,
+      0,
+    );
+    const samples = new Float32Array(sampleCount);
+    let offset = 0;
+
+    for (const chunk of pcmSamplesRef.current) {
+      samples.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    pcmSamplesRef.current = [];
+    emitAudioSegment(
+      encodePcmToTencentWav(samples, pcmSampleRateRef.current),
+      "audio/wav",
+    );
+  }
+
+  function stopPcmRecorder() {
+    processorRef.current?.disconnect();
+    sourceNodeRef.current?.disconnect();
+    processorRef.current = null;
+    sourceNodeRef.current = null;
+    pcmSamplesRef.current = [];
+    pcmSampleRateRef.current = 0;
+
+    void audioContextRef.current?.close();
+    audioContextRef.current = null;
+  }
+
+  async function startPcmRecorder(stream: MediaStream) {
+    const audioWindow = window as Window &
+      typeof globalThis & {
+        webkitAudioContext?: typeof AudioContext;
+      };
+    const AudioContextClass =
+      audioWindow.AudioContext || audioWindow.webkitAudioContext;
+
+    if (!AudioContextClass) {
+      onNotice("当前浏览器不支持录音自动分段转写，可停止后点击“转写录音”。");
+      return;
+    }
+
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+    pcmSampleRateRef.current = audioContext.sampleRate;
+    pcmSamplesRef.current = [];
+    processor.onaudioprocess = (event) => {
+      if (stopReasonRef.current === "cancel") {
+        return;
+      }
+
+      pcmSamplesRef.current.push(
+        new Float32Array(event.inputBuffer.getChannelData(0)),
+      );
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+    audioContextRef.current = audioContext;
+    sourceNodeRef.current = source;
+    processorRef.current = processor;
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
   }
 
   function createRecorder(stream: MediaStream, supportedMimeType: string) {
@@ -130,41 +201,17 @@ export function useAudioRecorder({
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         chunksRef.current.push(event.data);
-        currentSegmentChunksRef.current.push(event.data);
       }
     };
 
     recorder.onerror = () => {
       stopReasonRef.current = "error";
-      shouldContinueRecordingRef.current = false;
       onError("录音失败，请检查麦克风设备，或改用手动输入。");
       finishRecording(null);
     };
 
     recorder.onstop = () => {
       const shouldKeepAudio = stopReasonRef.current !== "cancel";
-      const segmentBlob =
-        shouldKeepAudio && currentSegmentChunksRef.current.length
-          ? new Blob(currentSegmentChunksRef.current, { type: supportedMimeType })
-          : null;
-      const shouldRestart = isRotatingSegmentRef.current;
-
-      currentSegmentChunksRef.current = [];
-      isRotatingSegmentRef.current = false;
-
-      if (segmentBlob) {
-        emitAudioSegment(segmentBlob, supportedMimeType);
-      }
-
-      if (shouldRestart && shouldContinueRecordingRef.current && streamRef.current) {
-        const nextRecorder = createRecorder(streamRef.current, supportedMimeType);
-
-        mediaRecorderRef.current = nextRecorder;
-        nextRecorder.start();
-        scheduleSegmentRotation();
-        return;
-      }
-
       const blob =
         shouldKeepAudio && chunksRef.current.length
           ? new Blob(chunksRef.current, { type: supportedMimeType })
@@ -178,20 +225,6 @@ export function useAudioRecorder({
     return recorder;
   }
 
-  function scheduleSegmentRotation() {
-    clearSegmentTimer();
-    segmentTimeoutRef.current = window.setTimeout(() => {
-      const recorder = mediaRecorderRef.current;
-
-      if (!recorder || recorder.state !== "recording") {
-        return;
-      }
-
-      isRotatingSegmentRef.current = true;
-      recorder.stop();
-    }, AUTO_TRANSCRIBE_INTERVAL_SECONDS * 1000);
-  }
-
   function startRecordingTimer() {
     clearRecordingTimer();
     setElapsedSeconds(0);
@@ -202,6 +235,13 @@ export function useAudioRecorder({
       setElapsedSeconds((currentSeconds) => {
         const nextSeconds = currentSeconds + 1;
         elapsedSecondsRef.current = nextSeconds;
+
+        if (
+          nextSeconds > 0 &&
+          nextSeconds % AUTO_TRANSCRIBE_INTERVAL_SECONDS === 0
+        ) {
+          flushPcmSegment();
+        }
 
         if (
           nextSeconds >= RECORDING_WARNING_SECONDS &&
@@ -227,7 +267,7 @@ export function useAudioRecorder({
     onNotice(null);
     setAudioBlob(null);
     chunksRef.current = [];
-    currentSegmentChunksRef.current = [];
+    pcmSamplesRef.current = [];
 
     if (!navigator.mediaDevices?.getUserMedia) {
       onNotice("当前浏览器不支持网页录音，请使用手动输入或换用 Chrome / Safari。");
@@ -252,20 +292,19 @@ export function useAudioRecorder({
       const recorder = createRecorder(stream, supportedMimeType);
 
       chunksRef.current = [];
-      currentSegmentChunksRef.current = [];
+      pcmSamplesRef.current = [];
       segmentIndexRef.current = 0;
       sessionIdRef.current = sessionId;
-      shouldContinueRecordingRef.current = true;
       stopReasonRef.current = "manual";
       streamRef.current = stream;
       mediaRecorderRef.current = recorder;
       setMimeType(supportedMimeType);
       onSessionStart?.(sessionId);
+      await startPcmRecorder(stream);
 
       recorder.start();
       setIsRecording(true);
       startRecordingTimer();
-      scheduleSegmentRotation();
     } catch (error) {
       stopTracks(streamRef.current);
       streamRef.current = null;
@@ -283,24 +322,12 @@ export function useAudioRecorder({
     const recorder = mediaRecorderRef.current;
 
     if (!recorder || recorder.state === "inactive") {
-      if (isRotatingSegmentRef.current) {
-        shouldContinueRecordingRef.current = false;
-        stopReasonRef.current = reason;
-        clearRecordingTimer();
-        clearSegmentTimer();
-
-        return new Promise<Blob | null>((resolve) => {
-          stopResolverRef.current = resolve;
-        });
-      }
-
       return Promise.resolve(audioBlob);
     }
 
-    shouldContinueRecordingRef.current = false;
     stopReasonRef.current = reason;
     clearRecordingTimer();
-    clearSegmentTimer();
+    flushPcmSegment();
 
     return new Promise<Blob | null>((resolve) => {
       stopResolverRef.current = resolve;
@@ -311,7 +338,7 @@ export function useAudioRecorder({
   async function cancelRecording() {
     setAudioBlob(null);
     chunksRef.current = [];
-    currentSegmentChunksRef.current = [];
+    pcmSamplesRef.current = [];
     sessionIdRef.current = null;
     await stopRecording("cancel");
     setElapsedSeconds(0);
@@ -327,7 +354,7 @@ export function useAudioRecorder({
 
     setAudioBlob(null);
     chunksRef.current = [];
-    currentSegmentChunksRef.current = [];
+    pcmSamplesRef.current = [];
     sessionIdRef.current = null;
     setElapsedSeconds(0);
     elapsedSecondsRef.current = 0;
@@ -338,9 +365,8 @@ export function useAudioRecorder({
   useEffect(() => {
     return () => {
       clearRecordingTimer();
-      clearSegmentTimer();
       stopTracks(streamRef.current);
-      shouldContinueRecordingRef.current = false;
+      stopPcmRecorder();
       mediaRecorderRef.current?.stop();
       mediaRecorderRef.current = null;
     };
