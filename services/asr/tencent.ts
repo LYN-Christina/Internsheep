@@ -38,6 +38,17 @@ function readEnvLine(name: string) {
     .find(Boolean);
 }
 
+function getConfigSummary(config: TencentASRConfig) {
+  return {
+    appIdLength: config.appId.length,
+    appIdPreview: config.appId.replace(/^(\d{3})\d+(\d{3})$/, "$1***$2"),
+    appIdValid: /^\d+$/.test(config.appId),
+    asrType: config.asrType,
+    engine: config.engine,
+    region: config.region,
+  };
+}
+
 function getConfig(): TencentASRConfig {
   const appId = readEnvLine("TENCENT_APP_ID");
   const secretId = readEnvLine("TENCENT_SECRET_ID");
@@ -48,6 +59,18 @@ function getConfig(): TencentASRConfig {
       "腾讯云语音转文字服务未配置完整，请联系开发者。",
       503,
       "tencent-not-configured",
+    );
+  }
+
+  if (!/^\d+$/.test(appId)) {
+    throw new ASRError(
+      "腾讯云语音转文字参数配置有误，请联系开发者检查 TENCENT_APP_ID。",
+      400,
+      "tencent-bad-config",
+      {
+        appIdLength: appId.length,
+        appIdValid: false,
+      },
     );
   }
 
@@ -261,10 +284,11 @@ export async function transcribeWithTencent({
     );
   }
 
+  const responseText = await response.text();
   let data: TencentFlashResponse | null = null;
 
   try {
-    data = (await response.json()) as TencentFlashResponse;
+    data = JSON.parse(responseText) as TencentFlashResponse;
   } catch {
     data = null;
   }
@@ -274,7 +298,9 @@ export async function transcribeWithTencent({
 
     console.warn("Tencent ASR provider error", {
       code: data?.code,
+      config: getConfigSummary(config),
       message: data?.message,
+      responseBodyPreview: data ? undefined : responseText.slice(0, 240),
       requestId: data?.request_id,
       status: response.status,
       voiceFormat,
@@ -286,7 +312,9 @@ export async function transcribeWithTencent({
       code,
       {
         code: data?.code,
+        config: getConfigSummary(config),
         message: data?.message,
+        responseBodyPreview: data ? undefined : responseText.slice(0, 240),
         requestId: data?.request_id,
         status: response.status,
       },
