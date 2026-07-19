@@ -220,15 +220,39 @@ export async function transcribeWithTencent({
     query,
     secretKey: config.secretKey,
   });
-  const response = await fetch(`https://${TENCENT_FLASH_HOST}${path}?${query}`, {
-    body: Buffer.from(await audio.arrayBuffer()),
-    headers: {
-      Authorization: signature,
-      "Content-Type": "application/octet-stream",
-      "X-Tencent-Region": config.region,
-    },
-    method: "POST",
-  });
+  const requestUrl = `https://${TENCENT_FLASH_HOST}${path}?${query}`;
+  let response: Response;
+
+  try {
+    response = await fetch(requestUrl, {
+      body: Buffer.from(await audio.arrayBuffer()),
+      headers: {
+        Authorization: signature,
+        "Content-Type": "application/octet-stream",
+        "X-Tencent-Region": config.region,
+      },
+      method: "POST",
+    });
+  } catch (error) {
+    console.warn("Tencent ASR network error", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : typeof error,
+      host: TENCENT_FLASH_HOST,
+      voiceFormat,
+    });
+
+    throw new ASRError(
+      "腾讯云语音转文字连接失败，请稍后重试，或直接手动输入 / 粘贴会议内容。",
+      502,
+      "tencent-network-error",
+      {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : typeof error,
+        host: TENCENT_FLASH_HOST,
+        voiceFormat,
+      },
+    );
+  }
 
   let data: TencentFlashResponse | null = null;
 

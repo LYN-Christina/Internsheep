@@ -57,8 +57,23 @@ export function serializeASRError(error: unknown) {
     };
   }
 
+  if (error instanceof Error) {
+    return {
+      code: "asr-error",
+      details: {
+        errorMessage: error.message,
+        errorName: error.name,
+      },
+      message: "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。",
+      status: 500,
+    };
+  }
+
   return {
     code: "asr-error",
+    details: {
+      errorType: typeof error,
+    },
     message: "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。",
     status: 500,
   };

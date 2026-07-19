@@ -32,6 +32,13 @@ export async function POST(request: Request) {
       );
     }
 
+    console.info("ASR upload received", {
+      fileName: audio.name,
+      mimeType: audio.type,
+      provider: getASRProvider(),
+      size: audio.size,
+    });
+
     const result = await transcribeAudio({
       audio,
       fileName: audio.name,

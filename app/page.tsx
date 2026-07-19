@@ -532,6 +532,10 @@ export default function HomePage() {
       return "语音转文字服务鉴权失败，请联系开发者检查腾讯云密钥。";
     }
 
+    if (params.code === "tencent-network-error") {
+      return "腾讯云语音转文字连接失败，请稍后重试，或直接手动输入 / 粘贴会议内容。";
+    }
+
     if (params.code === "tencent-unsupported-format") {
       return "当前录音格式暂不支持转写，请尝试换用手机自带浏览器或使用手动输入。";
     }
