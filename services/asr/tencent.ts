@@ -31,10 +31,17 @@ interface TencentFlashResponse {
   }>;
 }
 
+function readEnvLine(name: string) {
+  return process.env[name]
+    ?.split(/\r?\n/)
+    .map((part) => part.trim())
+    .find(Boolean);
+}
+
 function getConfig(): TencentASRConfig {
-  const appId = process.env.TENCENT_APP_ID?.trim();
-  const secretId = process.env.TENCENT_SECRET_ID?.trim();
-  const secretKey = process.env.TENCENT_SECRET_KEY?.trim();
+  const appId = readEnvLine("TENCENT_APP_ID");
+  const secretId = readEnvLine("TENCENT_SECRET_ID");
+  const secretKey = readEnvLine("TENCENT_SECRET_KEY");
 
   if (!appId || !secretId || !secretKey) {
     throw new ASRError(
@@ -46,9 +53,9 @@ function getConfig(): TencentASRConfig {
 
   return {
     appId,
-    asrType: process.env.TENCENT_ASR_TYPE?.trim() || DEFAULT_TENCENT_ASR_TYPE,
-    engine: process.env.TENCENT_ASR_ENGINE?.trim() || DEFAULT_TENCENT_ENGINE,
-    region: process.env.TENCENT_REGION?.trim() || DEFAULT_TENCENT_REGION,
+    asrType: readEnvLine("TENCENT_ASR_TYPE") || DEFAULT_TENCENT_ASR_TYPE,
+    engine: readEnvLine("TENCENT_ASR_ENGINE") || DEFAULT_TENCENT_ENGINE,
+    region: readEnvLine("TENCENT_REGION") || DEFAULT_TENCENT_REGION,
     secretId,
     secretKey,
   };
