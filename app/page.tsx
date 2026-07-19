@@ -834,31 +834,37 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col gap-4 px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-3 transition-colors duration-300 sm:px-4 sm:pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:pt-5">
+    <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col gap-3 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-2 transition-colors duration-300 sm:gap-4 sm:px-4 sm:pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:pt-5">
       <div aria-hidden="true" className="cosmic-ornaments" />
       <span aria-hidden="true" className="twinkle-star left-[78%] top-[13%]" />
       <span aria-hidden="true" className="twinkle-star left-[12%] top-[42%]" />
       <span aria-hidden="true" className="twinkle-star left-[88%] top-[61%]" />
       <header className="sticky top-0 z-10 -mx-3 px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
             <CompanionMark />
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[rgba(231,214,238,0.7)]">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color-mix(in_srgb,var(--primary)_72%,transparent)] sm:text-xs sm:tracking-[0.2em]">
                 Internsheep
               </p>
-              <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">
+              <p className="mt-0.5 max-w-[13rem] truncate text-xs text-[var(--muted-foreground)] sm:mt-1 sm:max-w-none sm:text-sm">
                 把今天的小事，慢慢养成成长的星图
               </p>
             </div>
           </div>
-          <RoleSwitcher role={role} onSwitchRole={switchRole} />
+          <div className="flex justify-end sm:block">
+            <RoleSwitcher role={role} onSwitchRole={switchRole} />
+          </div>
         </div>
       </header>
 
       <Toast message={errorMessage} />
 
-      <NoticeBanner tone="accent">
+      <p className="rounded-[var(--radius-pill)] border border-[color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[rgba(255,255,255,0.045)] px-3 py-1.5 text-[11px] leading-5 text-[rgba(255,255,255,0.58)] backdrop-blur-xl sm:text-xs">
+        测试版 · 数据仅保存在本机浏览器，请勿输入敏感信息。
+      </p>
+
+      <NoticeBanner className="hidden" tone="accent">
         <p className="font-semibold text-[var(--foreground)]">Internsheep 测试版</p>
         <p className="mt-1">
           当前数据仅保存在本机浏览器，请不要输入公司机密、个人隐私或其他敏感信息。

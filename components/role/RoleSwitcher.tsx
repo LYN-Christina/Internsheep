@@ -14,7 +14,7 @@ export function RoleSwitcher({ onSwitchRole, role }: RoleSwitcherProps) {
   return (
     <div
       aria-label="当前角色"
-      className="relative grid h-11 w-[9.75rem] grid-cols-2 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[rgba(255,255,255,0.08)] p-1 shadow-[0_10px_28px_rgba(10,7,33,0.18)] backdrop-blur-xl"
+      className="relative grid h-10 w-[9rem] shrink-0 grid-cols-2 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[rgba(255,255,255,0.08)] p-1 shadow-[0_10px_28px_rgba(10,7,33,0.18)] backdrop-blur-xl sm:h-11 sm:w-[9.75rem]"
       role="tablist"
     >
       <span
@@ -28,7 +28,7 @@ export function RoleSwitcher({ onSwitchRole, role }: RoleSwitcherProps) {
         return (
           <button
             aria-selected={active}
-            className={`relative z-10 flex h-full items-center justify-center rounded-[var(--radius-pill)] px-2 text-xs font-semibold transition-colors ${
+            className={`relative z-10 flex h-full min-w-0 items-center justify-center rounded-[var(--radius-pill)] px-1 text-[12px] font-semibold leading-none transition-colors sm:px-2 sm:text-xs ${
               active
                 ? "text-[var(--primary-foreground)]"
                 : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -38,7 +38,7 @@ export function RoleSwitcher({ onSwitchRole, role }: RoleSwitcherProps) {
             type="button"
             onClick={() => onSwitchRole(item.value)}
           >
-            {item.label}
+            <span className="block whitespace-nowrap">{item.label}</span>
           </button>
         );
       })}

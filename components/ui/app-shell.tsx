@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
@@ -223,11 +224,13 @@ export function CompanionMark() {
   return (
     <div className="relative size-16 shrink-0 overflow-visible">
       <div className="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] blur-xl" />
-      <img
+      <Image
         alt=""
         aria-hidden="true"
         className="relative size-16 object-contain drop-shadow-[0_14px_26px_rgba(8,5,28,0.32)]"
-        src="/assets/sheep-star-cutout.png?v=2"
+        height={64}
+        src="/assets/sheep-star-cutout-v2.png"
+        width={64}
       />
     </div>
   );
