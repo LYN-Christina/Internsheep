@@ -1,29 +1,169 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfbf9;
-  --foreground: #171717;
-  --muted: #f1f0eb;
-  --muted-foreground: #68645c;
-  --border: #e5e2da;
-  --primary: #26231f;
-  --primary-foreground: #ffffff;
-  --success: #157347;
-  --danger: #c62828;
-  --intern-accent: #183b34;
-  --student-accent: #3b3b8f;
+  --background: #17113f;
+  --background-deep: #0f0b2d;
+  --background-soft: #24194f;
+  --foreground: #fbf7ff;
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-strong: rgba(255, 255, 255, 0.14);
+  --muted-foreground: rgba(255, 255, 255, 0.66);
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(231, 214, 238, 0.3);
+  --primary: #e7d6ee;
+  --primary-foreground: #1d143f;
+  --accent: #a994ff;
+  --accent-soft: rgba(169, 148, 255, 0.18);
+  --success: #a8f0d2;
+  --danger: #ff9fb8;
+  --warning: #f5d28c;
+  --glass: rgba(255, 255, 255, 0.09);
+  --glass-strong: rgba(255, 255, 255, 0.13);
+  --shadow-soft: 0 20px 60px rgba(10, 7, 33, 0.36);
+  --shadow-card: 0 16px 42px rgba(12, 8, 38, 0.28);
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+}
+
+:root[data-role="intern"] {
+  --background: #14255c;
+  --background-deep: #081233;
+  --background-soft: #24478d;
+  --primary: #dbe8ff;
+  --primary-foreground: #10245a;
+  --accent: #5781d1;
+  --accent-soft: rgba(87, 129, 209, 0.26);
+  --border-strong: rgba(87, 129, 209, 0.46);
+}
+
+:root[data-role="student"] {
+  --background: #211f68;
+  --background-deep: #11113c;
+  --background-soft: #373889;
+  --primary: #e7e5ff;
+  --primary-foreground: #20215e;
+  --accent: #5255ba;
+  --accent-soft: rgba(82, 85, 186, 0.28);
+  --border-strong: rgba(82, 85, 186, 0.48);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: var(--background-deep);
+}
+
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(circle at 18% 6%, color-mix(in srgb, var(--accent) 34%, transparent), transparent 30rem),
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--background-soft) 72%, transparent), transparent 22rem),
+    linear-gradient(180deg, var(--background) 0%, var(--background-soft) 42%, var(--background-deep) 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  transition: background 360ms ease;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+body::before,
+body::after {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  content: "";
+}
+
+body::before {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.5px),
+    radial-gradient(circle, color-mix(in srgb, var(--primary) 48%, transparent) 0 1px, transparent 1.7px);
+  background-position:
+    18px 26px,
+    92px 76px;
+  background-size:
+    126px 118px,
+    168px 154px;
+  opacity: 0.34;
+  animation: star-drift 18s linear infinite alternate;
+}
+
+body::after {
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 50% 112%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 42%),
+    radial-gradient(ellipse at 50% 118%, color-mix(in srgb, var(--background-soft) 56%, transparent), transparent 45%);
+  transition: background 360ms ease;
+}
+
+.cosmic-ornaments {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.cosmic-ornaments::before {
+  position: absolute;
+  left: 6%;
+  top: 14%;
+  width: min(18rem, 48vw);
+  height: 9rem;
+  content: "";
+  background:
+    radial-gradient(circle at 8% 44%, rgba(255, 255, 255, 0.72) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 32% 18%, color-mix(in srgb, var(--primary) 74%, transparent) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 58% 52%, rgba(255, 255, 255, 0.56) 0 1.5px, transparent 2px),
+    radial-gradient(circle at 86% 28%, color-mix(in srgb, var(--accent) 72%, transparent) 0 1.5px, transparent 2px),
+    linear-gradient(24deg, transparent 7%, rgba(255, 255, 255, 0.13) 8%, transparent 9% 30%, rgba(255, 255, 255, 0.12) 31%, transparent 32% 55%, rgba(255, 255, 255, 0.11) 56%, transparent 57%);
+  opacity: 0.58;
+  transform: rotate(-8deg);
+}
+
+.cosmic-ornaments::after {
+  position: absolute;
+  right: -8rem;
+  bottom: -5.25rem;
+  width: min(30rem, 86vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  content: "";
+  background:
+    radial-gradient(circle at 34% 30%, color-mix(in srgb, var(--primary) 18%, transparent) 0 0.5rem, transparent 0.55rem),
+    radial-gradient(circle at 58% 42%, rgba(255, 255, 255, 0.07) 0 0.28rem, transparent 0.32rem),
+    radial-gradient(circle at 44% 64%, color-mix(in srgb, var(--accent) 13%, transparent) 0 0.42rem, transparent 0.48rem),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 58%);
+  opacity: 0.72;
+  filter: blur(0.1px);
+}
+
+.twinkle-star {
+  position: fixed;
+  z-index: 0;
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--primary) 74%, transparent);
+  pointer-events: none;
+  animation: twinkle 4.8s ease-in-out infinite;
+}
+
+.twinkle-star:nth-of-type(2) {
+  animation-delay: 1.2s;
+}
+
+.twinkle-star:nth-of-type(3) {
+  animation-delay: 2.4s;
 }
 
 button,
@@ -31,4 +171,81 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea {
+  color-scheme: dark;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+@keyframes star-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.22;
+  }
+
+  to {
+    transform: translate3d(0, -12px, 0);
+    opacity: 0.34;
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.72;
+  }
+
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.28;
+  }
+
+  50% {
+    transform: scale(1.25);
+    opacity: 0.78;
+  }
+}
+
+.glass-panel {
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.07)),
+    rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(22px);
+}
+
+.text-balance {
+  text-wrap: balance;
 }

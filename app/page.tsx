@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Toast } from "@/components/common/Toast";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -10,6 +10,7 @@ import { SettingsPageV2 } from "@/components/pages/SettingsPageV2";
 import { TodayChecklistPageV2 } from "@/components/pages/TodayChecklistPageV2";
 import { WeeklyReportPageV2 } from "@/components/pages/WeeklyReportPageV2";
 import { RoleSwitcher } from "@/components/role/RoleSwitcher";
+import { CompanionMark, NoticeBanner } from "@/components/ui/app-shell";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useCurrentRole } from "@/hooks/useCurrentRole";
 import { useReports } from "@/hooks/useReports";
@@ -172,6 +173,10 @@ export default function HomePage() {
     () => getCurrentWeekRange(),
     [],
   );
+
+  useEffect(() => {
+    document.documentElement.dataset.role = role;
+  }, [role]);
 
   function switchRole(nextRole: Role) {
     void stopRecording();
@@ -829,16 +834,38 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-3 px-3 pb-[calc(6.25rem+env(safe-area-inset-bottom))] pt-3 sm:gap-5 sm:px-4 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] sm:pt-5">
-      <header className="sticky top-0 z-10 -mx-3 border-b border-[var(--border)] bg-[var(--background)]/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4 sm:py-3">
+    <main className="relative mx-auto flex min-h-screen max-w-4xl flex-col gap-4 px-3 pb-[calc(6.75rem+env(safe-area-inset-bottom))] pt-3 transition-colors duration-300 sm:px-4 sm:pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:pt-5">
+      <div aria-hidden="true" className="cosmic-ornaments" />
+      <span aria-hidden="true" className="twinkle-star left-[78%] top-[13%]" />
+      <span aria-hidden="true" className="twinkle-star left-[12%] top-[42%]" />
+      <span aria-hidden="true" className="twinkle-star left-[88%] top-[61%]" />
+      <header className="sticky top-0 z-10 -mx-3 px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <CompanionMark />
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[rgba(231,214,238,0.7)]">
+                Internsheep
+              </p>
+              <p className="mt-1 truncate text-sm text-[var(--muted-foreground)]">
+                把今天的小事，慢慢养成成长的星图
+              </p>
+            </div>
+          </div>
           <RoleSwitcher role={role} onSwitchRole={switchRole} />
         </div>
       </header>
 
       <Toast message={errorMessage} />
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-3 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-4 sm:text-sm">
+      <NoticeBanner tone="accent">
+        <p className="font-semibold text-[var(--foreground)]">Internsheep 测试版</p>
+        <p className="mt-1">
+          当前数据仅保存在本机浏览器，请不要输入公司机密、个人隐私或其他敏感信息。
+        </p>
+      </NoticeBanner>
+
+      <section className="hidden">
         <p className="font-medium text-[var(--foreground)]">Internsheep 测试版</p>
         <p className="mt-1">
           当前为公开测试版本。数据仅保存在当前浏览器，请勿输入公司机密、个人隐私、患者信息等敏感内容。

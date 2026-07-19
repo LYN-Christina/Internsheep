@@ -5,16 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-pill)] px-4 text-sm font-semibold transition duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
   {
     variants: {
       variant: {
         default:
-          "bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90",
+          "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_12px_34px_color-mix(in_srgb,var(--primary)_24%,transparent)] hover:brightness-110",
         secondary:
-          "border border-[var(--border)] bg-[var(--muted)] text-[var(--foreground)] hover:bg-white",
-        ghost: "bg-transparent text-[var(--foreground)] hover:bg-[var(--muted)]",
-        danger: "bg-[var(--danger)] text-white hover:opacity-90",
+          "border border-[var(--border)] bg-[rgba(255,255,255,0.09)] text-[var(--foreground)] backdrop-blur-xl hover:bg-[rgba(255,255,255,0.14)]",
+        ghost:
+          "bg-transparent text-[var(--muted-foreground)] hover:bg-[rgba(255,255,255,0.09)] hover:text-[var(--foreground)]",
+        danger:
+          "border border-[rgba(255,159,184,0.26)] bg-[rgba(255,159,184,0.13)] text-[#ffdbe4] hover:bg-[rgba(255,159,184,0.2)]",
       },
       size: {
         default: "h-10 px-4",

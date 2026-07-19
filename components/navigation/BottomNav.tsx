@@ -27,24 +27,31 @@ const items: Array<{
 
 export function BottomNav({ currentView, onChange }: BottomNavProps) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--border)] bg-white/95 px-1.5 pt-1.5 pb-[calc(0.35rem+env(safe-area-inset-bottom))] backdrop-blur sm:px-2 sm:pt-2 sm:pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-      <div className="mx-auto grid max-w-4xl grid-cols-5 gap-0.5 sm:gap-1">
-        {items.map(({ icon: Icon, label, view }) => (
-          <button
-            aria-current={currentView === view ? "page" : undefined}
-            className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-md px-0.5 text-[10px] leading-tight sm:min-h-14 sm:gap-1 sm:px-1 sm:text-xs ${
-              currentView === view
-                ? "bg-[var(--primary)] text-white"
-                : "text-[var(--muted-foreground)]"
-            }`}
-            key={view}
-            type="button"
-            onClick={() => onChange(view)}
-          >
-            <Icon aria-hidden="true" className="size-4" />
-            <span className="max-w-full text-center leading-tight">{label}</span>
-          </button>
-        ))}
+    <nav className="fixed inset-x-0 bottom-0 z-20 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="mx-auto grid max-w-4xl grid-cols-5 gap-1 rounded-[28px] border border-[var(--border)] bg-[rgba(20,13,51,0.78)] p-1.5 shadow-[0_18px_60px_rgba(5,3,18,0.46)] backdrop-blur-2xl">
+        {items.map(({ icon: Icon, label, view }) => {
+          const active = currentView === view;
+
+          return (
+            <button
+              aria-current={active ? "page" : undefined}
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-[22px] px-1 text-[10px] leading-tight transition active:scale-[0.98] ${
+                active
+                  ? "bg-[color-mix(in_srgb,var(--primary)_18%,transparent)] text-[var(--primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_26%,transparent)]"
+                  : "text-[rgba(255,255,255,0.48)] hover:bg-[rgba(255,255,255,0.07)] hover:text-[rgba(255,255,255,0.78)]"
+              }`}
+              key={view}
+              type="button"
+              onClick={() => onChange(view)}
+            >
+              {active ? (
+                <span className="absolute top-1 size-1 rounded-full bg-[var(--primary)] shadow-[0_0_12px_color-mix(in_srgb,var(--primary)_80%,transparent)]" />
+              ) : null}
+              <Icon aria-hidden="true" className="size-4" />
+              <span className="max-w-full truncate text-center">{label}</span>
+            </button>
+          );
+        })}
       </div>
     </nav>
   );

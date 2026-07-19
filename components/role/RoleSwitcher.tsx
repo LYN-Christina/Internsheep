@@ -5,29 +5,43 @@ interface RoleSwitcherProps {
   onSwitchRole: (role: Role) => void;
 }
 
-const roleLabels: Record<Role, string> = {
-  intern: "实习生",
-  student: "学生",
-};
+const roles: Array<{ value: Role; label: string }> = [
+  { value: "intern", label: "实习生" },
+  { value: "student", label: "学生" },
+];
 
 export function RoleSwitcher({ onSwitchRole, role }: RoleSwitcherProps) {
-  const nextRole = role === "intern" ? "student" : "intern";
-
   return (
-    <button
-      className="rounded-md text-left"
-      type="button"
-      onClick={() => onSwitchRole(nextRole)}
+    <div
+      aria-label="当前角色"
+      className="relative grid h-11 w-[9.75rem] grid-cols-2 rounded-[var(--radius-pill)] border border-[var(--border)] bg-[rgba(255,255,255,0.08)] p-1 shadow-[0_10px_28px_rgba(10,7,33,0.18)] backdrop-blur-xl"
+      role="tablist"
     >
-      <p className="text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-        当前角色
-      </p>
-      <h1 className="text-lg font-semibold leading-tight sm:text-xl">
-        {roleLabels[role]}
-      </h1>
-      <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] sm:text-xs">
-        点击切换到{roleLabels[nextRole]}
-      </p>
-    </button>
+      <span
+        className={`absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-[var(--radius-pill)] bg-[var(--primary)] shadow-[0_10px_28px_color-mix(in_srgb,var(--primary)_20%,transparent)] transition-transform duration-300 ease-out ${
+          role === "student" ? "translate-x-[calc(100%+0.25rem)]" : "translate-x-0"
+        }`}
+      />
+      {roles.map((item) => {
+        const active = role === item.value;
+
+        return (
+          <button
+            aria-selected={active}
+            className={`relative z-10 flex h-full items-center justify-center rounded-[var(--radius-pill)] px-2 text-xs font-semibold transition-colors ${
+              active
+                ? "text-[var(--primary-foreground)]"
+                : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            }`}
+            key={item.value}
+            role="tab"
+            type="button"
+            onClick={() => onSwitchRole(item.value)}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

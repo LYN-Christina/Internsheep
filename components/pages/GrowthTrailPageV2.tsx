@@ -9,6 +9,13 @@ import {
 import { useState } from "react";
 
 import { EmptyState } from "@/components/common/EmptyState";
+import {
+  GlassCard,
+  MetricCard,
+  NoticeBanner,
+  PageShell,
+  SectionHeader,
+} from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import type { GrowthTrailPageProps } from "@/lib/page-types";
 import type { Report, Task } from "@/types";
@@ -23,20 +30,10 @@ function GrowthSummaryCards({
 
   return (
     <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {[
-        ["累计记录天数", days],
-        ["累计任务数", tasks.length],
-        ["已完成任务数", completed],
-        ["已生成周报数", reports.length],
-      ].map(([label, value]) => (
-        <div
-          className="rounded-lg border border-[var(--border)] bg-white p-4"
-          key={label}
-        >
-          <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
-          <p className="mt-2 text-2xl font-semibold">{value}</p>
-        </div>
-      ))}
+      <MetricCard label="累计记录天数" value={days} hint="陪你走过" />
+      <MetricCard label="累计任务数" value={tasks.length} hint="被捕捉的小事" />
+      <MetricCard label="已完成任务数" value={completed} hint="已经发光" />
+      <MetricCard label="已生成周报数" value={reports.length} hint="阶段回望" />
     </section>
   );
 }
@@ -45,20 +42,20 @@ function GrowthDayCard({ date, tasks }: { date: string; tasks: Task[] }) {
   const completed = tasks.filter((task) => task.status === "done").length;
 
   return (
-    <article className="rounded-md border border-[var(--border)] p-3">
+    <article className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.06)] p-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">{date}</p>
-        <p className="text-xs text-[var(--muted-foreground)]">
+        <p className="text-sm font-semibold text-[var(--foreground)]">{date}</p>
+        <p className="rounded-full bg-[rgba(255,255,255,0.08)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
           {completed}/{tasks.length} 完成
         </p>
       </div>
-      <div className="mt-2 flex flex-col gap-1">
+      <div className="mt-3 flex flex-col gap-2">
         {tasks.slice(0, 4).map((task) => (
-          <div className="min-w-0" key={task.id}>
+          <div className="min-w-0 border-l border-[var(--border)] pl-3" key={task.id}>
             <p className="truncate text-sm text-[var(--muted-foreground)]">
               {task.status === "done" ? "✓" : "·"} {task.title}
             </p>
-            <p className="truncate text-xs text-[var(--muted-foreground)]">
+            <p className="truncate text-xs text-[rgba(255,255,255,0.48)]">
               {formatDueDisplay(task)}
             </p>
           </div>
@@ -76,12 +73,13 @@ function HistoryTaskSection({
   const dates = Object.keys(tasksGroupedByDate).sort().reverse();
 
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-      <div className="flex items-center gap-2">
-        <CalendarDays aria-hidden="true" className="size-5" />
-        <h2 className="text-base font-semibold">历史任务记录</h2>
-      </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <GlassCard>
+      <SectionHeader
+        icon={<CalendarDays aria-hidden="true" className="size-4" />}
+        title="历史任务记录"
+        description="按日期沉淀你的实习和学习轨迹。"
+      />
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {dates.length ? (
           dates.map((date) => (
             <GrowthDayCard
@@ -92,12 +90,12 @@ function HistoryTaskSection({
           ))
         ) : (
           <EmptyState
-            description="保存今日任务后，这里会按日期沉淀你的实习记录。"
+            description="保存今日任务后，这里会按日期沉淀你的记录。"
             title="还没有历史任务"
           />
         )}
       </div>
-    </section>
+    </GlassCard>
   );
 }
 
@@ -136,9 +134,9 @@ function ReportHistoryCard({ report }: { report: Report }) {
   }
 
   return (
-    <article className="rounded-md border border-[var(--border)] p-3">
+    <article className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.06)] p-3">
       <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium">
+        <p className="text-sm font-semibold text-[var(--foreground)]">
           {report.dateRange.start} 至 {report.dateRange.end}
         </p>
         <p className="text-xs text-[var(--muted-foreground)]">
@@ -146,7 +144,7 @@ function ReportHistoryCard({ report }: { report: Report }) {
         </p>
       </div>
       <p
-        className={`mt-2 whitespace-pre-wrap text-sm text-[var(--muted-foreground)] ${
+        className={`mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--muted-foreground)] ${
           isExpanded ? "" : "line-clamp-4"
         }`}
       >
@@ -164,9 +162,7 @@ function ReportHistoryCard({ report }: { report: Report }) {
           <Download aria-hidden="true" className="size-4" />
           导出 Markdown
         </Button>
-        {notice ? (
-          <span className="text-xs text-[var(--muted-foreground)]">{notice}</span>
-        ) : null}
+        {notice ? <span className="text-xs text-[var(--muted-foreground)]">{notice}</span> : null}
       </div>
     </article>
   );
@@ -174,16 +170,15 @@ function ReportHistoryCard({ report }: { report: Report }) {
 
 function HistoryReportSection({ reports }: Pick<GrowthTrailPageProps, "reports">) {
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-      <div className="flex items-center gap-2">
-        <FileText aria-hidden="true" className="size-5" />
-        <h2 className="text-base font-semibold">历史周报</h2>
-      </div>
-      <div className="mt-3 flex flex-col gap-3">
+    <GlassCard>
+      <SectionHeader
+        icon={<FileText aria-hidden="true" className="size-4" />}
+        title="历史周报"
+        description="每一周的复盘都会保留在这里。"
+      />
+      <div className="mt-4 flex flex-col gap-3">
         {reports.length ? (
-          reports.map((report) => (
-            <ReportHistoryCard key={report.id} report={report} />
-          ))
+          reports.map((report) => <ReportHistoryCard key={report.id} report={report} />)
         ) : (
           <EmptyState
             description="在“本周周报”生成并保存后，历史报告会出现在这里。"
@@ -191,24 +186,22 @@ function HistoryReportSection({ reports }: Pick<GrowthTrailPageProps, "reports">
           />
         )}
       </div>
-    </section>
+    </GlassCard>
   );
 }
 
 function InternshipSummaryPackCard() {
   return (
-    <section className="rounded-lg border border-dashed border-[var(--border)] bg-white p-4">
-      <div className="flex items-center gap-2">
-        <PackageOpen aria-hidden="true" className="size-5" />
-        <h2 className="text-base font-semibold">实习结束总结包</h2>
-      </div>
-      <p className="mt-2 text-sm text-[var(--muted-foreground)]">
-        汇总任务、周报和成长关键词，生成实习结束时的复盘材料。
-      </p>
-      <span className="mt-3 inline-flex rounded-md bg-[var(--muted)] px-3 py-1 text-xs text-[var(--muted-foreground)]">
+    <GlassCard className="border-dashed">
+      <SectionHeader
+        icon={<PackageOpen aria-hidden="true" className="size-4" />}
+        title="实习结束总结包"
+        description="汇总任务、周报和成长关键词，生成实习结束时的复盘材料。"
+      />
+      <NoticeBanner className="mt-4" tone="accent">
         即将上线
-      </span>
-    </section>
+      </NoticeBanner>
+    </GlassCard>
   );
 }
 
@@ -218,20 +211,20 @@ export function GrowthTrailPageV2({
   tasksGroupedByDate,
 }: GrowthTrailPageProps) {
   return (
-    <div className="flex flex-col gap-4">
-      <section>
-        <div className="flex items-center gap-2">
-          <Archive aria-hidden="true" className="size-5" />
-          <h1 className="text-2xl font-semibold">成长印记</h1>
-        </div>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          这里不是普通历史记录，而是你的实习成长档案。
-        </p>
-      </section>
+    <PageShell
+      eyebrow="Growth archive"
+      title="成长印记"
+      description="这里不是普通历史记录，而是你的实习成长档案。"
+      action={
+        <span className="flex size-12 items-center justify-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.08)]">
+          <Archive aria-hidden="true" className="size-5 text-[var(--primary)]" />
+        </span>
+      }
+    >
       <GrowthSummaryCards reports={reports} tasks={tasks} />
       <HistoryTaskSection tasksGroupedByDate={tasksGroupedByDate} />
       <HistoryReportSection reports={reports} />
       <InternshipSummaryPackCard />
-    </div>
+    </PageShell>
   );
 }

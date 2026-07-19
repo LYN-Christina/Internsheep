@@ -3,6 +3,15 @@
 import { Download, Eye, EyeOff, RefreshCw, Settings2, Upload } from "lucide-react";
 import { useRef, useState, type ChangeEvent } from "react";
 
+import {
+  GlassCard,
+  GlassInput,
+  GlassSelect,
+  MetricCard,
+  NoticeBanner,
+  PageShell,
+  SectionHeader,
+} from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import type { SettingsPageProps } from "@/lib/page-types";
 import {
@@ -79,154 +88,167 @@ export function SettingsPageV2({
   }
 
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-white p-4">
-      <div className="flex items-center gap-2">
-        <Settings2 aria-hidden="true" className="size-5" />
-        <h1 className="text-2xl font-semibold">我的设置</h1>
+    <PageShell
+      eyebrow="Settings center"
+      title="我的设置"
+      description="把模型、周报偏好和本地数据管理收在一个安静的设置中心。"
+      action={
+        <span className="flex size-12 items-center justify-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.08)]">
+          <Settings2 aria-hidden="true" className="size-5 text-[var(--primary)]" />
+        </span>
+      }
+    >
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <MetricCard label="语音转文字" value={remainingAudioTranscription} hint="今日剩余" />
+        <MetricCard label="AI 提取任务" value={remainingTaskExtraction} hint="今日剩余" />
+        <MetricCard label="本周周报" value={remainingWeeklyReport} hint="本周剩余" />
       </div>
 
-      <div className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
-        <p className="font-medium text-[var(--foreground)]">
-          当前模式：{currentMode}
-        </p>
-        <p className="mt-1">
-          你可以直接使用免费体验额度，也可以配置自己的 API Key 解除次数限制。
-        </p>
-        <p className="mt-1">
-          如果你使用免费体验额度，AI 请求将通过服务端代理完成；如果你配置自己的 API Key，将优先使用你的 Key。
-        </p>
-        <p className="mt-1">
-          免费体验额度：语音转文字每天 2 次，今日剩余 {remainingAudioTranscription} 次；AI 提取任务每天 2 次，今日剩余 {remainingTaskExtraction} 次；本周周报每周 2 次，本周剩余 {remainingWeeklyReport} 次。
-        </p>
-      </div>
+      <GlassCard>
+        <SectionHeader
+          title="模型服务"
+          description={`当前模式：${currentMode}。免费体验会通过服务端代理完成，自用 API Key 会优先使用你的配置。`}
+        />
+        <label className="mt-4 flex flex-col gap-2 text-sm font-semibold text-[var(--foreground)]">
+          模型服务商
+          <GlassSelect
+            value={visibleProvider}
+            onChange={(event) => onProviderChange(event.target.value as ApiProvider)}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="anthropic">Anthropic</option>
+          </GlassSelect>
+        </label>
+        <NoticeBanner className="mt-3">
+          当前配置：{providerMeta.baseURL} / {providerMeta.model}
+        </NoticeBanner>
+      </GlassCard>
 
-      <label className="mt-4 flex flex-col gap-2 text-sm font-medium">
-        模型服务商
-        <select
-          className="h-10 rounded-md border border-[var(--border)] bg-white px-3 text-sm"
-          value={visibleProvider}
-          onChange={(event) => onProviderChange(event.target.value as ApiProvider)}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="deepseek">DeepSeek</option>
-          <option value="anthropic">Anthropic</option>
-        </select>
-      </label>
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-        当前配置：{providerMeta.baseURL} / {providerMeta.model}
-      </p>
-      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-        模型名必须填写第三方平台支持的精确名称；如果测试连接提示模型不可用，请在部署环境中检查 AI_DEFAULT_MODEL。
-      </p>
-
-      <label className="mt-4 flex flex-col gap-2 text-sm font-medium">
-        API Key
-        <div className="flex gap-2">
-          <input
-            className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] px-3 text-sm"
-            placeholder="仅保存在本机 localStorage"
-            type={isApiKeyVisible ? "text" : "password"}
-            value={settings.apiKey}
-            onChange={(event) => onApiKeyChange(event.target.value)}
-          />
+      <GlassCard>
+        <SectionHeader
+          title="API Key"
+          description="仅保存在当前浏览器 localStorage。配置后不受免费次数限制。"
+        />
+        <label className="mt-4 flex flex-col gap-2 text-sm font-semibold text-[var(--foreground)]">
+          API Key 输入
+          <div className="flex gap-2">
+            <GlassInput
+              className="min-w-0 flex-1"
+              placeholder="仅保存在本机 localStorage"
+              type={isApiKeyVisible ? "text" : "password"}
+              value={settings.apiKey}
+              onChange={(event) => onApiKeyChange(event.target.value)}
+            />
+            <Button
+              aria-label={isApiKeyVisible ? "隐藏 API Key" : "显示 API Key"}
+              size="icon"
+              type="button"
+              variant="secondary"
+              onClick={() => setIsApiKeyVisible((visible) => !visible)}
+            >
+              {isApiKeyVisible ? (
+                <EyeOff aria-hidden="true" className="size-4" />
+              ) : (
+                <Eye aria-hidden="true" className="size-4" />
+              )}
+            </Button>
+          </div>
+        </label>
+        {!hasApiKey ? (
+          <NoticeBanner className="mt-3" tone="accent">
+            尚未配置 API Key。你仍可使用免费体验额度；配置后会优先使用自己的 API Key。
+          </NoticeBanner>
+        ) : null}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button
-            aria-label={isApiKeyVisible ? "隐藏 API Key" : "显示 API Key"}
-            size="icon"
+            disabled={isTestingConnection || !hasApiKey || !providerMeta.supported}
             type="button"
             variant="secondary"
-            onClick={() => setIsApiKeyVisible((visible) => !visible)}
+            onClick={handleTestConnection}
           >
-            {isApiKeyVisible ? (
-              <EyeOff aria-hidden="true" className="size-4" />
-            ) : (
-              <Eye aria-hidden="true" className="size-4" />
-            )}
+            <RefreshCw
+              aria-hidden="true"
+              className={isTestingConnection ? "size-4 animate-spin" : "size-4"}
+            />
+            {isTestingConnection ? "测试中" : "测试连接"}
+          </Button>
+          {connectionMessage ? (
+            <span className="text-sm text-[var(--success)]">{connectionMessage}</span>
+          ) : null}
+          {connectionError ? (
+            <span className="text-sm text-[var(--danger)]">{connectionError}</span>
+          ) : null}
+        </div>
+      </GlassCard>
+
+      <GlassCard>
+        <SectionHeader title="周报偏好" description="用两个滑杆调节输出语气和长度。" />
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-2 text-sm font-semibold text-[var(--foreground)]">
+            周报语气：{settings.reportStyle.tone}
+            <input
+              className="accent-[#e7d6ee]"
+              max="100"
+              min="0"
+              type="range"
+              value={settings.reportStyle.tone}
+              onChange={(event) => onToneChange(Number(event.target.value))}
+            />
+            <span className="text-xs font-normal text-[var(--muted-foreground)]">
+              数值越高，语气越积极完整。
+            </span>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-semibold text-[var(--foreground)]">
+            周报长度：{settings.reportStyle.length}
+            <input
+              className="accent-[#e7d6ee]"
+              max="100"
+              min="0"
+              type="range"
+              value={settings.reportStyle.length}
+              onChange={(event) => onLengthChange(Number(event.target.value))}
+            />
+            <span className="text-xs font-normal text-[var(--muted-foreground)]">
+              数值越高，内容越详细。
+            </span>
+          </label>
+        </div>
+      </GlassCard>
+
+      <GlassCard>
+        <SectionHeader title="隐私与数据" description="任务、报告和自用 Key 都只存储在当前浏览器。" />
+        <NoticeBanner className="mt-4">
+          调用 AI 时，自用 API Key 只会发送到本站后端 API route 代理请求，不会写入前端代码或 GitHub。录音转文字会在停止录音后上传音频到服务端 ASR 处理。
+        </NoticeBanner>
+        <NoticeBanner className="mt-3">
+          清除浏览器缓存可能导致数据丢失，换设备后数据不会自动同步。建议定期导出数据或导出 Markdown 备份重要周报。
+        </NoticeBanner>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onExportData}>
+            <Download aria-hidden="true" className="size-4" />
+            导出我的数据
+          </Button>
+          <input
+            ref={fileInputRef}
+            accept="application/json,.json"
+            className="hidden"
+            type="file"
+            onChange={handleImportFileChange}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload aria-hidden="true" className="size-4" />
+            导入我的数据
+          </Button>
+          <Button type="button" variant="danger" onClick={onClearData}>
+            清除所有数据
           </Button>
         </div>
-      </label>
-      {!hasApiKey ? (
-        <p className="mt-2 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
-          尚未配置 API Key。你仍可使用免费体验额度；配置后会优先使用自己的 API Key，且不受免费次数限制。
-        </p>
-      ) : null}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          disabled={isTestingConnection || !hasApiKey || !providerMeta.supported}
-          type="button"
-          variant="secondary"
-          onClick={handleTestConnection}
-        >
-          <RefreshCw
-            aria-hidden="true"
-            className={isTestingConnection ? "size-4 animate-spin" : "size-4"}
-          />
-          {isTestingConnection ? "测试中" : "测试连接"}
-        </Button>
-        {connectionMessage ? (
-          <span className="text-sm text-green-700">{connectionMessage}</span>
-        ) : null}
-        {connectionError ? (
-          <span className="text-sm text-red-700">{connectionError}</span>
-        ) : null}
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-2 text-sm font-medium">
-          周报语气：{settings.reportStyle.tone}
-          <input
-            max="100"
-            min="0"
-            type="range"
-            value={settings.reportStyle.tone}
-            onChange={(event) => onToneChange(Number(event.target.value))}
-          />
-        </label>
-        <label className="flex flex-col gap-2 text-sm font-medium">
-          周报长度：{settings.reportStyle.length}
-          <input
-            max="100"
-            min="0"
-            type="range"
-            value={settings.reportStyle.length}
-            onChange={(event) => onLengthChange(Number(event.target.value))}
-          />
-        </label>
-      </div>
-
-      <div className="mt-4 rounded-md bg-[var(--muted)] p-3 text-sm text-[var(--muted-foreground)]">
-        <p className="font-medium text-[var(--foreground)]">隐私说明</p>
-        <p className="mt-1">
-          自用 API Key、任务和报告都只存储在当前浏览器 localStorage。调用 AI 时，自用 API Key 只会发送到本站后端 API route 代理请求，不会写入前端代码或 GitHub。录音转文字会在停止录音后上传音频到服务端 ASR 处理。
-        </p>
-        <p className="mt-1">
-          清除浏览器缓存可能导致数据丢失，换设备后数据不会自动同步。建议定期导出数据或导出 Markdown 备份重要周报。
-        </p>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" onClick={onExportData}>
-          <Download aria-hidden="true" className="size-4" />
-          导出我的数据
-        </Button>
-        <input
-          ref={fileInputRef}
-          accept="application/json,.json"
-          className="hidden"
-          type="file"
-          onChange={handleImportFileChange}
-        />
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Upload aria-hidden="true" className="size-4" />
-          导入我的数据
-        </Button>
-        <Button type="button" variant="danger" onClick={onClearData}>
-          清除所有数据
-        </Button>
-      </div>
-    </section>
+      </GlassCard>
+    </PageShell>
   );
 }

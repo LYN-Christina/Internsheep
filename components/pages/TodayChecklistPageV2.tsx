@@ -1,6 +1,23 @@
-import { Check, CalendarClock, Plus, Radio, RotateCcw, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  ClipboardList,
+  Plus,
+  Radio,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 
 import { EmptyState } from "@/components/common/EmptyState";
+import {
+  CompanionMark,
+  GlassCard,
+  GlassInput,
+  MetricCard,
+  NoticeBanner,
+  PageShell,
+  SectionHeader,
+} from "@/components/ui/app-shell";
 import { Button } from "@/components/ui/button";
 import type { TodayChecklistPageProps } from "@/lib/page-types";
 import type { Task } from "@/types";
@@ -54,92 +71,91 @@ function TaskCard({
   onDeleteTask: (id: string) => void;
   onUpdateTask: (id: string, patch: Partial<Task>) => void;
 }) {
+  const isDone = task.status === "done";
+
   return (
-    <article
-      className={`rounded-md border p-2.5 sm:p-3 ${
-        variant === "overdue"
-          ? "border-orange-200 bg-orange-50/60"
-          : "border-[var(--border)]"
-      }`}
-    >
-      <div className="flex items-start gap-2.5">
-        <input
-          checked={task.status === "done"}
-          className="mt-2 size-4 shrink-0"
-          type="checkbox"
-          onChange={(event) =>
+    <article className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[rgba(255,255,255,0.065)] p-3 shadow-[0_10px_26px_rgba(8,5,28,0.18)]">
+      <div className="flex items-start gap-3">
+        <button
+          aria-label={isDone ? "标记为待办" : "标记为完成"}
+          className={`mt-1 flex size-6 shrink-0 items-center justify-center rounded-full border transition ${
+            isDone
+              ? "border-[rgba(168,240,210,0.6)] bg-[rgba(168,240,210,0.18)] text-[var(--success)]"
+              : "border-[var(--border-strong)] bg-[rgba(255,255,255,0.06)] text-transparent"
+          }`}
+          type="button"
+          onClick={() =>
             onUpdateTask(task.id, {
-              status: event.target.checked ? "done" : "todo",
+              status: isDone ? "todo" : "done",
             })
           }
-        />
+        >
+          <Check aria-hidden="true" className="size-4" />
+        </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              {variant === "overdue" ? (
-                <p className="mb-0.5 text-xs text-orange-700">
-                  原日期：{formatOriginalDate(task.dueDate)}
-                </p>
-              ) : null}
-              <input
-                className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium leading-6 focus:border-[var(--border)] ${
-                  task.status === "done"
-                    ? "line-through text-[var(--muted-foreground)]"
-                    : ""
-                }`}
-                value={task.title}
-                onChange={(event) => onUpdateTask(task.id, { title: event.target.value })}
-              />
-            </div>
-            <Button
-              aria-label="删除任务"
-              className="size-9 shrink-0 text-[var(--muted-foreground)]"
-              size="icon"
-              type="button"
-              variant="ghost"
-              onClick={() => onDeleteTask(task.id)}
-            >
-              <Trash2 aria-hidden="true" className="size-4" />
-            </Button>
-          </div>
-          <div className="mt-0.5 px-1">
-            <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-              {task.category} · {priorityLabels[task.priority]}
+          {variant === "overdue" ? (
+            <p className="mb-1 text-xs text-[var(--warning)]">
+              原日期：{formatOriginalDate(task.dueDate)}
             </p>
-            <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+          ) : null}
+          <input
+            className={`w-full rounded-[10px] border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold leading-6 text-[var(--foreground)] outline-none transition focus:border-[var(--border)] focus:bg-[rgba(255,255,255,0.08)] ${
+              isDone ? "text-[var(--muted-foreground)] line-through" : ""
+            }`}
+            value={task.title}
+            onChange={(event) => onUpdateTask(task.id, { title: event.target.value })}
+          />
+          <div className="mt-1 flex flex-wrap gap-1.5 px-1 text-[11px] text-[var(--muted-foreground)]">
+            <span className="rounded-full bg-[rgba(255,255,255,0.07)] px-2 py-1">
+              {task.category}
+            </span>
+            <span className="rounded-full bg-[rgba(255,255,255,0.07)] px-2 py-1">
+              {priorityLabels[task.priority]}
+            </span>
+            <span className="rounded-full bg-[rgba(255,255,255,0.07)] px-2 py-1">
               {formatDueDisplay(task)}
-            </p>
+            </span>
           </div>
         </div>
+        <Button
+          aria-label="删除任务"
+          className="size-9 shrink-0 text-[var(--muted-foreground)]"
+          size="icon"
+          type="button"
+          variant="ghost"
+          onClick={() => onDeleteTask(task.id)}
+        >
+          <Trash2 aria-hidden="true" className="size-4" />
+        </Button>
       </div>
       {variant === "overdue" ? (
-        <div className="mt-2 flex flex-wrap gap-1.5 pl-6 sm:mt-3 sm:gap-2">
-            <Button
-              size="sm"
-              type="button"
-              variant="secondary"
-              onClick={() => onUpdateTask(task.id, { status: "done" })}
-            >
-              <Check aria-hidden="true" className="size-4" />
-              完成
-            </Button>
-            <Button
-              size="sm"
-              type="button"
-              variant="secondary"
-              onClick={() => onContinueToday?.(task)}
-            >
-              <RotateCcw aria-hidden="true" className="size-4" />
-              今天继续
-            </Button>
-            <Button
-              size="sm"
-              type="button"
-              variant="secondary"
-              onClick={() => onUpdateTask(task.id, { status: "dropped" })}
-            >
-              放弃
-            </Button>
+        <div className="mt-3 flex flex-wrap gap-2 pl-9">
+          <Button
+            size="sm"
+            type="button"
+            variant="secondary"
+            onClick={() => onUpdateTask(task.id, { status: "done" })}
+          >
+            <Check aria-hidden="true" className="size-4" />
+            完成
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            variant="secondary"
+            onClick={() => onContinueToday?.(task)}
+          >
+            <RotateCcw aria-hidden="true" className="size-4" />
+            今天继续
+          </Button>
+          <Button
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => onUpdateTask(task.id, { status: "dropped" })}
+          >
+            放弃
+          </Button>
         </div>
       ) : null}
     </article>
@@ -170,69 +186,52 @@ export function TodayChecklistPageV2({
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-4">
-      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
-              {roleDescriptions[role]}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold sm:text-2xl">今日清单</h2>
-          </div>
-          <Button className="w-full sm:w-auto" type="button" variant="secondary" onClick={onGoRecording}>
-            <Radio aria-hidden="true" className="size-4" />
-            去录音纪要
-          </Button>
-        </div>
-        <p className="mt-3 rounded-md bg-[var(--muted)] px-3 py-2 text-xs text-[var(--muted-foreground)] sm:hidden">
-          今日任务 {todayTasks.length} · 待办 {todayTodoTasks.length} · 已完成{" "}
-          {todayDoneTasks.length}
-        </p>
-        <div className="mt-4 hidden grid-cols-3 gap-3 sm:grid">
-          <div className="rounded-md bg-[var(--muted)] p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">今日任务</p>
-            <p className="mt-1 text-2xl font-semibold">{todayTasks.length}</p>
-          </div>
-          <div className="rounded-md bg-[var(--muted)] p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">待办</p>
-            <p className="mt-1 text-2xl font-semibold">{todayTodoTasks.length}</p>
-          </div>
-          <div className="rounded-md bg-[var(--muted)] p-3">
-            <p className="text-xs text-[var(--muted-foreground)]">已完成</p>
-            <p className="mt-1 text-2xl font-semibold">{todayDoneTasks.length}</p>
-          </div>
-        </div>
-      </section>
+    <PageShell
+      eyebrow="Today dashboard"
+      title="今日清单"
+      description={roleDescriptions[role]}
+      action={<CompanionMark />}
+    >
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <MetricCard label="今日任务" value={todayTasks.length} hint="星图节点" />
+        <MetricCard label="待办" value={todayTodoTasks.length} hint="等你认领" />
+        <MetricCard label="已完成" value={todayDoneTasks.length} hint="微光沉淀" />
+      </div>
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
-        <label className="text-sm font-medium" htmlFor="manual-task">
-          手动添加任务
-        </label>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <input
-            className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] px-3 text-sm"
+      <GlassCard>
+        <SectionHeader
+          icon={<Plus aria-hidden="true" className="size-4" />}
+          title="手动添加任务"
+          description="先写下一件明确的小事，之后可以在清单里继续编辑。"
+        />
+        <div className="mt-4 flex items-center gap-2">
+          <GlassInput
+            className="min-w-0 flex-1"
             id="manual-task"
             placeholder="例如：整理竞品分析初稿"
             value={manualTitle}
             onChange={(event) => onManualTitleChange(event.target.value)}
           />
-          <Button className="min-h-10" type="button" onClick={onAddManualTask}>
+          <Button className="min-h-11 shrink-0 px-5" type="button" onClick={onAddManualTask}>
             <Plus aria-hidden="true" className="size-4" />
             添加
           </Button>
         </div>
-      </section>
+      </GlassCard>
+
+      <Button className="min-h-12 w-full" type="button" variant="secondary" onClick={onGoRecording}>
+        <Radio aria-hidden="true" className="size-4" />
+        去录音纪要，让 AI 帮我拆任务
+      </Button>
 
       {overdueTasks.length ? (
-        <section className="rounded-lg border border-orange-200 bg-orange-50/40 p-3 sm:p-4">
-          <div className="flex items-center gap-2">
-            <CalendarClock aria-hidden="true" className="size-5 text-orange-700" />
-            <h3 className="text-base font-semibold">逾期未完成</h3>
-          </div>
-          <p className="mt-1 text-sm text-orange-800">
-            还有一些之前的任务没有收尾，可以继续完成或标记为放弃。
-          </p>
-          <div className="mt-3 flex flex-col gap-2">
+        <GlassCard>
+          <SectionHeader
+            icon={<CalendarClock aria-hidden="true" className="size-4" />}
+            title="逾期未完成"
+            description="之前的小任务还在星图边缘，可以继续推进，也可以温柔放下。"
+          />
+          <div className="mt-4 flex flex-col gap-2">
             {overdueTasks.map((task) => (
               <TaskCard
                 key={task.id}
@@ -244,12 +243,15 @@ export function TodayChecklistPageV2({
               />
             ))}
           </div>
-        </section>
+        </GlassCard>
       ) : null}
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
-        <h3 className="text-base font-semibold">今日待办</h3>
-        <div className="mt-3 flex flex-col gap-2">
+      <GlassCard>
+        <SectionHeader
+          icon={<ClipboardList aria-hidden="true" className="size-4" />}
+          title="今日待办"
+        />
+        <div className="mt-4 flex flex-col gap-2">
           {todayTodoTasks.length ? (
             todayTodoTasks.map((task) => (
               <TaskCard
@@ -271,11 +273,11 @@ export function TodayChecklistPageV2({
             />
           )}
         </div>
-      </section>
+      </GlassCard>
 
-      <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
-        <h3 className="text-base font-semibold">今日已完成</h3>
-        <div className="mt-3 flex flex-col gap-2">
+      <GlassCard>
+        <SectionHeader title="今日已完成" />
+        <div className="mt-4 flex flex-col gap-2">
           {todayDoneTasks.length ? (
             todayDoneTasks.map((task) => (
               <TaskCard
@@ -287,12 +289,10 @@ export function TodayChecklistPageV2({
               />
             ))
           ) : (
-            <p className="text-sm text-[var(--muted-foreground)]">
-              完成任务后会出现在这里。
-            </p>
+            <NoticeBanner>完成任务后，它们会出现在这里，像今晚多出来的几颗星。</NoticeBanner>
           )}
         </div>
-      </section>
-    </div>
+      </GlassCard>
+    </PageShell>
   );
 }
