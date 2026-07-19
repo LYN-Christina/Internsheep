@@ -13,7 +13,9 @@ const categoriesByRole = {
 };
 
 export function RecordingNotesPageV2({
+  autoTranscribedCount,
   canClearInput,
+  currentTranscribingSegment,
   draftResult,
   inputText,
   isExtracting,
@@ -38,8 +40,8 @@ export function RecordingNotesPageV2({
   role,
 }: RecordingNotesPageProps) {
   const usageMessage = isUsingUserApiKey
-    ? `当前使用自用 API Key，AI 提取不占用免费额度。语音转文字今日还可用 ${remainingAudioTranscription} 次。`
-    : `免费体验：语音转文字今日还可用 ${remainingAudioTranscription} 次；AI 提取今日还可用 ${remainingTaskExtraction} 次。`;
+    ? `当前使用自用 API Key，AI 提取不占用免费额度。测试版录音会自动分段转写，请合理使用；手动补转今日还可用 ${remainingAudioTranscription} 次。`
+    : `免费体验：测试版录音会自动分段转写，请合理使用；手动补转今日还可用 ${remainingAudioTranscription} 次；AI 提取今日还可用 ${remainingTaskExtraction} 次。`;
   const needsFormatConversion = recordingMimeType
     ? shouldConvertToTencentWav(recordingMimeType)
     : false;
@@ -49,7 +51,7 @@ export function RecordingNotesPageV2({
     <div className="flex flex-col gap-3 sm:gap-4">
       <section className="rounded-lg border border-[var(--border)] bg-white p-3 sm:p-4">
         <p className="text-xs leading-relaxed text-[var(--muted-foreground)] sm:text-sm">
-          录音会先保存为音频，停止后再转成文字。测试版单次最长支持 10 分钟，长会议建议分段记录。
+          录音会先保存为音频，并在录音过程中自动分段转写。测试版单次最长支持 5 分钟，长会议建议分段记录。
         </p>
         <h2 className="mt-1 text-xl font-semibold sm:text-2xl">录音纪要</h2>
         <p className="mt-2 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-[var(--muted-foreground)] sm:p-3 sm:text-sm">
@@ -110,11 +112,22 @@ export function RecordingNotesPageV2({
           </Button>
         </div>
         <p className="mt-3 text-xs text-[var(--muted-foreground)] sm:text-sm">
-          录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 10:00
+          录音时长 {formatRecordingTime(recordingElapsedSeconds)} / 05:00
         </p>
+        {isRecording ? (
+          <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
+            {currentTranscribingSegment
+              ? `正在转写第 ${currentTranscribingSegment} 段……`
+              : "正在录音，系统会每 30 秒自动转写一段。"}
+          </p>
+        ) : autoTranscribedCount > 0 ? (
+          <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
+            已自动转写 {autoTranscribedCount} 段。
+          </p>
+        ) : null}
         {hasRecordedAudio ? (
           <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
-            音频已录制{recordingMimeType ? `（${recordingMimeType}）` : ""}，可点击“转写录音”。长会议建议分段记录。
+            音频已录制{recordingMimeType ? `（${recordingMimeType}）` : ""}，可点击“转写录音”补转或重试。长会议建议分段记录。
             {needsFormatConversion
               ? " 当前格式会在转写前转换为 WAV，转换后文件会变大，建议按 1-2 分钟分段。"
               : ""}

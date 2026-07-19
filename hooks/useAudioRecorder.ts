@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-export const MAX_RECORDING_SECONDS = 10 * 60;
-export const RECORDING_WARNING_SECONDS = 8 * 60;
+export const AUTO_TRANSCRIBE_INTERVAL_SECONDS = 30;
+export const MAX_RECORDING_SECONDS = 5 * 60;
+export const RECORDING_WARNING_SECONDS = 4 * 60;
 
 export const SUPPORTED_AUDIO_MIME_TYPES = [
   "audio/mp4",
@@ -18,8 +19,16 @@ export const SUPPORTED_AUDIO_MIME_TYPES = [
 type StopReason = "manual" | "auto" | "cancel" | "error";
 
 interface UseAudioRecorderOptions {
+  onAudioSegment?: (segment: {
+    blob: Blob;
+    elapsedSeconds: number;
+    mimeType: string;
+    segmentId: string;
+    sessionId: string;
+  }) => void;
   onError: (message: string | null) => void;
   onNotice: (message: string | null) => void;
+  onSessionStart?: (sessionId: string) => void;
 }
 
 function stopTracks(stream: MediaStream | null) {
@@ -47,15 +56,23 @@ export function formatRecordingTime(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions) {
+export function useAudioRecorder({
+  onAudioSegment,
+  onError,
+  onNotice,
+  onSessionStart,
+}: UseAudioRecorderOptions) {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const elapsedSecondsRef = useRef(0);
   const hasShownWarningRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const segmentIndexRef = useRef(0);
+  const sessionIdRef = useRef<string | null>(null);
   const stopReasonRef = useRef<StopReason>("manual");
   const streamRef = useRef<MediaStream | null>(null);
   const stopResolverRef = useRef<((blob: Blob | null) => void) | null>(null);
@@ -80,22 +97,24 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
   function startRecordingTimer() {
     clearRecordingTimer();
     setElapsedSeconds(0);
+    elapsedSecondsRef.current = 0;
     hasShownWarningRef.current = false;
 
     intervalRef.current = window.setInterval(() => {
       setElapsedSeconds((currentSeconds) => {
         const nextSeconds = currentSeconds + 1;
+        elapsedSecondsRef.current = nextSeconds;
 
         if (
           nextSeconds >= RECORDING_WARNING_SECONDS &&
           !hasShownWarningRef.current
         ) {
           hasShownWarningRef.current = true;
-          onNotice("录音已接近 10 分钟上限，建议结束后先转写并保存。");
+          onNotice("录音已接近 5 分钟上限，建议结束后检查转写内容。");
         }
 
         if (nextSeconds >= MAX_RECORDING_SECONDS) {
-          onNotice("已达到 10 分钟录音上限。测试版建议长会议分段记录，你可以先转写当前录音。");
+          onNotice("已达到 5 分钟录音上限。测试版建议长会议分段记录。");
           void stopRecording("auto");
           return MAX_RECORDING_SECONDS;
         }
@@ -130,16 +149,28 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
+      const sessionId = crypto.randomUUID();
 
       chunksRef.current = [];
+      segmentIndexRef.current = 0;
+      sessionIdRef.current = sessionId;
       stopReasonRef.current = "manual";
       streamRef.current = stream;
       mediaRecorderRef.current = recorder;
       setMimeType(supportedMimeType);
+      onSessionStart?.(sessionId);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
+          segmentIndexRef.current += 1;
+          onAudioSegment?.({
+            blob: event.data,
+            elapsedSeconds: elapsedSecondsRef.current,
+            mimeType: supportedMimeType,
+            segmentId: `segment-${segmentIndexRef.current}`,
+            sessionId,
+          });
         }
       };
 
@@ -161,7 +192,7 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
         finishRecording(blob);
       };
 
-      recorder.start();
+      recorder.start(AUTO_TRANSCRIBE_INTERVAL_SECONDS * 1000);
       setIsRecording(true);
       startRecordingTimer();
     } catch (error) {
@@ -196,8 +227,10 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
   async function cancelRecording() {
     setAudioBlob(null);
     chunksRef.current = [];
+    sessionIdRef.current = null;
     await stopRecording("cancel");
     setElapsedSeconds(0);
+    elapsedSecondsRef.current = 0;
     setMimeType(null);
     onNotice(null);
   }
@@ -209,7 +242,9 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
 
     setAudioBlob(null);
     chunksRef.current = [];
+    sessionIdRef.current = null;
     setElapsedSeconds(0);
+    elapsedSecondsRef.current = 0;
     setMimeType(null);
     onNotice(null);
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { Toast } from "@/components/common/Toast";
 import { BottomNav } from "@/components/navigation/BottomNav";
@@ -44,6 +44,14 @@ const manualCategories: Record<Role, string[]> = {
 const MAX_AUDIO_UPLOAD_BYTES = 4 * 1024 * 1024;
 const TRANSCRIBE_FALLBACK_ERROR =
   "语音转文字失败，你可以重试，或直接手动输入 / 粘贴会议内容。";
+
+interface AudioSegment {
+  blob: Blob;
+  elapsedSeconds: number;
+  mimeType: string;
+  segmentId: string;
+  sessionId: string;
+}
 
 interface BackupData {
   settings?: Partial<Settings>;
@@ -127,6 +135,10 @@ export default function HomePage() {
   const [inputText, setInputText] = useState("");
   const [draftResult, setDraftResult] = useState<ExtractionResult | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [autoTranscribedCount, setAutoTranscribedCount] = useState(0);
+  const [currentTranscribingSegment, setCurrentTranscribingSegment] = useState<
+    number | null
+  >(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
@@ -134,6 +146,10 @@ export default function HomePage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [isWeeklyReportSaved, setIsWeeklyReportSaved] = useState(false);
   const [weeklyReportNotice, setWeeklyReportNotice] = useState<string | null>(null);
+  const activeRecordingSessionRef = useRef<string | null>(null);
+  const pendingSegmentIdsRef = useRef<Set<string>>(new Set());
+  const transcribedSegmentIdsRef = useRef<Set<string>>(new Set());
+  const transcribedSegmentTextsRef = useRef<Set<string>>(new Set());
   const {
     audioBlob,
     clearRecordedAudio,
@@ -143,8 +159,10 @@ export default function HomePage() {
     startRecording,
     stopRecording,
   } = useAudioRecorder({
+    onAudioSegment: transcribeAudioSegment,
     onError: setErrorMessage,
     onNotice: setRecordingNotice,
+    onSessionStart: startAutoTranscriptionSession,
   });
 
   const today = getTodayISO();
@@ -473,6 +491,7 @@ export default function HomePage() {
     }
 
     clearRecordedAudio();
+    resetAutoTranscriptionSession();
     setInputText("");
     setRecordingNotice(null);
     setErrorMessage(null);
@@ -482,8 +501,29 @@ export default function HomePage() {
     const blob = await stopRecording();
 
     if (blob) {
-      setRecordingNotice("音频已录制。你可以点击“转写录音”，也可以继续手动输入或粘贴会议内容。");
+      setRecordingNotice(
+        `录音已停止，已转写 ${autoTranscribedCount} 段。你可以继续编辑文本或提取任务。`,
+      );
     }
+  }
+
+  function startAutoTranscriptionSession(sessionId: string) {
+    activeRecordingSessionRef.current = sessionId;
+    pendingSegmentIdsRef.current = new Set();
+    transcribedSegmentIdsRef.current = new Set();
+    transcribedSegmentTextsRef.current = new Set();
+    setAutoTranscribedCount(0);
+    setCurrentTranscribingSegment(null);
+    setRecordingNotice("正在录音，系统会每 30 秒自动转写一段。");
+  }
+
+  function resetAutoTranscriptionSession() {
+    activeRecordingSessionRef.current = crypto.randomUUID();
+    pendingSegmentIdsRef.current = new Set();
+    transcribedSegmentIdsRef.current = new Set();
+    transcribedSegmentTextsRef.current = new Set();
+    setAutoTranscribedCount(0);
+    setCurrentTranscribingSegment(null);
   }
 
   function getAudioFileName(mimeType: string | null) {
@@ -550,6 +590,134 @@ export default function HomePage() {
     return TRANSCRIBE_FALLBACK_ERROR;
   }
 
+  function appendTranscribedText(text: string, segmentId?: string) {
+    const next = text.trim();
+
+    if (!next) {
+      return false;
+    }
+
+    if (segmentId && transcribedSegmentTextsRef.current.has(next)) {
+      return false;
+    }
+
+    if (segmentId) {
+      transcribedSegmentTextsRef.current.add(next);
+    }
+
+    setInputText((currentText) => {
+      const current = currentText.trimEnd();
+
+      return current ? `${current}\n${next}` : next;
+    });
+
+    return true;
+  }
+
+  async function uploadAudioForTranscription(params: {
+    audio: Blob;
+    mimeType: string;
+    onConvertNotice?: () => void;
+  }) {
+    const shouldConvertAudio = shouldConvertToTencentWav(
+      params.mimeType,
+      getAudioFileName(params.mimeType),
+    );
+
+    if (shouldConvertAudio) {
+      params.onConvertNotice?.();
+    }
+
+    const audioForUpload = shouldConvertAudio
+      ? await convertAudioBlobToTencentWav(params.audio)
+      : params.audio;
+    const uploadMimeType = shouldConvertAudio ? "audio/wav" : params.mimeType;
+
+    if (audioForUpload.size > MAX_AUDIO_UPLOAD_BYTES) {
+      throw new Error(
+        "转换后的录音文件较大，建议缩短录音或按 1-2 分钟分段记录。",
+      );
+    }
+
+    const formData = new FormData();
+    formData.append("audio", audioForUpload, getAudioFileName(uploadMimeType));
+
+    const response = await fetch("/api/ai/transcribe-audio", {
+      body: formData,
+      method: "POST",
+    });
+    const data = (await response.json()) as
+      | { text: string }
+      | { error?: { code?: string; message?: string } };
+
+    if (!response.ok || !("text" in data)) {
+      const transcribeError = "error" in data ? data.error : undefined;
+
+      throw new Error(
+        getTranscribeErrorMessage({
+          code: transcribeError?.code,
+          message: transcribeError?.message,
+          status: response.status,
+        }),
+      );
+    }
+
+    return data.text;
+  }
+
+  async function transcribeAudioSegment(segment: AudioSegment) {
+    const segmentKey = `${segment.sessionId}:${segment.segmentId}`;
+    const segmentNumber = Number(segment.segmentId.replace("segment-", "")) || 1;
+
+    if (activeRecordingSessionRef.current !== segment.sessionId) {
+      return;
+    }
+
+    if (
+      pendingSegmentIdsRef.current.has(segmentKey) ||
+      transcribedSegmentIdsRef.current.has(segmentKey)
+    ) {
+      return;
+    }
+
+    pendingSegmentIdsRef.current.add(segmentKey);
+    setCurrentTranscribingSegment(segmentNumber);
+    setRecordingNotice(`正在转写第 ${segmentNumber} 段……`);
+
+    try {
+      const text = await uploadAudioForTranscription({
+        audio: segment.blob,
+        mimeType: segment.mimeType,
+      });
+
+      if (activeRecordingSessionRef.current !== segment.sessionId) {
+        return;
+      }
+
+      const didAppend = appendTranscribedText(text, segmentKey);
+      transcribedSegmentIdsRef.current.add(segmentKey);
+
+      if (didAppend) {
+        setAutoTranscribedCount(transcribedSegmentIdsRef.current.size);
+        setRecordingNotice(
+          `已自动转写 ${transcribedSegmentIdsRef.current.size} 段。`,
+        );
+      }
+    } catch (error) {
+      if (activeRecordingSessionRef.current !== segment.sessionId) {
+        return;
+      }
+
+      console.error("Auto transcribe segment failed", error);
+      setRecordingNotice(
+        `第 ${segmentNumber} 段转写失败，可稍后点击转写录音重试，或直接手动输入。`,
+      );
+    } finally {
+      pendingSegmentIdsRef.current.delete(segmentKey);
+      setCurrentTranscribingSegment(null);
+    }
+  }
+
   async function transcribeRecordedAudio() {
     setErrorMessage(null);
 
@@ -569,61 +737,25 @@ export default function HomePage() {
 
     try {
       const originalMimeType = recordingMimeType ?? audioBlob.type;
-      const shouldConvertAudio = shouldConvertToTencentWav(
-        originalMimeType,
-        getAudioFileName(originalMimeType),
-      );
 
-      if (shouldConvertAudio) {
-        setRecordingNotice("当前手机录音格式需要转换，正在转成腾讯云可识别的 WAV 音频…");
-      }
-
-      const audioForUpload = shouldConvertAudio
-        ? await convertAudioBlobToTencentWav(audioBlob)
-        : audioBlob;
-      const uploadMimeType = shouldConvertAudio ? "audio/wav" : originalMimeType;
-
-      if (audioForUpload.size > MAX_AUDIO_UPLOAD_BYTES) {
-        setErrorMessage(
-          "转换后的录音文件较大，建议缩短录音或按 1-2 分钟分段记录。",
-        );
-        setRecordingNotice("音频仍已保留。你可以取消后重新分段录音，或直接手动输入。");
+      if (
+        transcribedSegmentIdsRef.current.size > 0 &&
+        !window.confirm(
+          "已有自动转写内容，手动转写可能产生重复文本，是否继续？",
+        )
+      ) {
         return;
       }
 
-      const formData = new FormData();
-      formData.append(
-        "audio",
-        audioForUpload,
-        getAudioFileName(uploadMimeType),
-      );
-
-      const response = await fetch("/api/ai/transcribe-audio", {
-        body: formData,
-        method: "POST",
+      const text = await uploadAudioForTranscription({
+        audio: audioBlob,
+        mimeType: originalMimeType,
+        onConvertNotice: () =>
+          setRecordingNotice(
+            "当前手机录音格式需要转换，正在转成腾讯云可识别的 WAV 音频…",
+          ),
       });
-      const data = (await response.json()) as
-        | { text: string }
-        | { error?: { code?: string; message?: string } };
-
-      if (!response.ok || !("text" in data)) {
-        const transcribeError = "error" in data ? data.error : undefined;
-
-        throw new Error(
-          getTranscribeErrorMessage({
-            code: transcribeError?.code,
-            message: transcribeError?.message,
-            status: response.status,
-          }),
-        );
-      }
-
-      setInputText((currentText) => {
-        const current = currentText.trimEnd();
-        const next = data.text.trim();
-
-        return current ? `${current}\n${next}` : next;
-      });
+      appendTranscribedText(text);
       incrementAudioTranscription();
       setRecordingNotice("录音已转写到文本框，你可以继续编辑后再提取任务。");
     } catch (error) {
@@ -690,6 +822,8 @@ export default function HomePage() {
               Boolean(recordingNotice))
           }
           hasRecordedAudio={Boolean(audioBlob)}
+          autoTranscribedCount={autoTranscribedCount}
+          currentTranscribingSegment={currentTranscribingSegment}
           isExtracting={isExtracting}
           isRecording={isRecording}
           isTranscribing={isTranscribing}

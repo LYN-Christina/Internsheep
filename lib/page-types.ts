@@ -31,6 +31,8 @@ export interface RecordingNotesPageProps {
   isExtracting: boolean;
   isRecording: boolean;
   isTranscribing: boolean;
+  autoTranscribedCount: number;
+  currentTranscribingSegment: number | null;
   hasRecordedAudio: boolean;
   recordingMimeType: string | null;
   recordingElapsedSeconds: number;
