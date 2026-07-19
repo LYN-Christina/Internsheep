@@ -147,6 +147,7 @@ export default function HomePage() {
   const [isWeeklyReportSaved, setIsWeeklyReportSaved] = useState(false);
   const [weeklyReportNotice, setWeeklyReportNotice] = useState<string | null>(null);
   const activeRecordingSessionRef = useRef<string | null>(null);
+  const audioSegmentsRef = useRef<Map<string, AudioSegment>>(new Map());
   const pendingSegmentIdsRef = useRef<Set<string>>(new Set());
   const transcribedSegmentIdsRef = useRef<Set<string>>(new Set());
   const transcribedSegmentTextsRef = useRef<Set<string>>(new Set());
@@ -509,6 +510,7 @@ export default function HomePage() {
 
   function startAutoTranscriptionSession(sessionId: string) {
     activeRecordingSessionRef.current = sessionId;
+    audioSegmentsRef.current = new Map();
     pendingSegmentIdsRef.current = new Set();
     transcribedSegmentIdsRef.current = new Set();
     transcribedSegmentTextsRef.current = new Set();
@@ -519,6 +521,7 @@ export default function HomePage() {
 
   function resetAutoTranscriptionSession() {
     activeRecordingSessionRef.current = crypto.randomUUID();
+    audioSegmentsRef.current = new Map();
     pendingSegmentIdsRef.current = new Set();
     transcribedSegmentIdsRef.current = new Set();
     transcribedSegmentTextsRef.current = new Set();
@@ -673,6 +676,8 @@ export default function HomePage() {
       return;
     }
 
+    audioSegmentsRef.current.set(segmentKey, segment);
+
     if (
       pendingSegmentIdsRef.current.has(segmentKey) ||
       transcribedSegmentIdsRef.current.has(segmentKey)
@@ -721,7 +726,7 @@ export default function HomePage() {
   async function transcribeRecordedAudio() {
     setErrorMessage(null);
 
-    if (!audioBlob) {
+    if (!audioBlob && audioSegmentsRef.current.size === 0) {
       setErrorMessage("请先录制一段音频后再转写。");
       return;
     }
@@ -736,12 +741,61 @@ export default function HomePage() {
     setRecordingNotice("正在转写录音，请稍等…");
 
     try {
+      const retrySegments = Array.from(audioSegmentsRef.current.entries())
+        .filter(
+          ([segmentKey]) =>
+            !transcribedSegmentIdsRef.current.has(segmentKey) &&
+            !pendingSegmentIdsRef.current.has(segmentKey),
+        )
+        .sort(([, first], [, second]) =>
+          first.segmentId.localeCompare(second.segmentId, undefined, {
+            numeric: true,
+          }),
+        );
+
+      if (retrySegments.length > 0) {
+        for (const [segmentKey, segment] of retrySegments) {
+          const segmentNumber =
+            Number(segment.segmentId.replace("segment-", "")) || 1;
+
+          pendingSegmentIdsRef.current.add(segmentKey);
+          setRecordingNotice(`正在补转第 ${segmentNumber} 段……`);
+
+          try {
+            const text = await uploadAudioForTranscription({
+              audio: segment.blob,
+              mimeType: segment.mimeType,
+              onConvertNotice: () =>
+                setRecordingNotice(
+                  `正在转换并补转第 ${segmentNumber} 段音频……`,
+                ),
+            });
+            appendTranscribedText(text, segmentKey);
+            transcribedSegmentIdsRef.current.add(segmentKey);
+            setAutoTranscribedCount(transcribedSegmentIdsRef.current.size);
+          } finally {
+            pendingSegmentIdsRef.current.delete(segmentKey);
+          }
+        }
+
+        incrementAudioTranscription();
+        setRecordingNotice(
+          `已补转完成，当前共转写 ${transcribedSegmentIdsRef.current.size} 段。`,
+        );
+        return;
+      }
+
+      if (!audioBlob) {
+        setRecordingNotice("没有需要补转的录音片段。你可以继续编辑文本或提取任务。");
+        return;
+      }
+
       const originalMimeType = recordingMimeType ?? audioBlob.type;
 
       if (
         transcribedSegmentIdsRef.current.size > 0 &&
         !window.confirm(
-          "已有自动转写内容，手动转写可能产生重复文本，是否继续？",
+          "已有自动转写内容，手动转写整段录音可能产生重复文本，是否继续？",
         )
       ) {
         return;

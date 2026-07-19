@@ -67,12 +67,16 @@ export function useAudioRecorder({
   const [isRecording, setIsRecording] = useState(false);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const currentSegmentChunksRef = useRef<BlobPart[]>([]);
   const elapsedSecondsRef = useRef(0);
   const hasShownWarningRef = useRef(false);
   const intervalRef = useRef<number | null>(null);
+  const isRotatingSegmentRef = useRef(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const segmentTimeoutRef = useRef<number | null>(null);
   const segmentIndexRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
+  const shouldContinueRecordingRef = useRef(false);
   const stopReasonRef = useRef<StopReason>("manual");
   const streamRef = useRef<MediaStream | null>(null);
   const stopResolverRef = useRef<((blob: Blob | null) => void) | null>(null);
@@ -84,14 +88,108 @@ export function useAudioRecorder({
     }
   }
 
+  function clearSegmentTimer() {
+    if (segmentTimeoutRef.current !== null) {
+      window.clearTimeout(segmentTimeoutRef.current);
+      segmentTimeoutRef.current = null;
+    }
+  }
+
   function finishRecording(blob: Blob | null) {
     stopTracks(streamRef.current);
     streamRef.current = null;
     mediaRecorderRef.current = null;
     clearRecordingTimer();
+    clearSegmentTimer();
+    shouldContinueRecordingRef.current = false;
     setIsRecording(false);
     stopResolverRef.current?.(blob);
     stopResolverRef.current = null;
+  }
+
+  function emitAudioSegment(blob: Blob, supportedMimeType: string) {
+    const sessionId = sessionIdRef.current;
+
+    if (!sessionId || blob.size === 0 || stopReasonRef.current === "cancel") {
+      return;
+    }
+
+    segmentIndexRef.current += 1;
+    onAudioSegment?.({
+      blob,
+      elapsedSeconds: elapsedSecondsRef.current,
+      mimeType: supportedMimeType,
+      segmentId: `segment-${segmentIndexRef.current}`,
+      sessionId,
+    });
+  }
+
+  function createRecorder(stream: MediaStream, supportedMimeType: string) {
+    const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunksRef.current.push(event.data);
+        currentSegmentChunksRef.current.push(event.data);
+      }
+    };
+
+    recorder.onerror = () => {
+      stopReasonRef.current = "error";
+      shouldContinueRecordingRef.current = false;
+      onError("录音失败，请检查麦克风设备，或改用手动输入。");
+      finishRecording(null);
+    };
+
+    recorder.onstop = () => {
+      const shouldKeepAudio = stopReasonRef.current !== "cancel";
+      const segmentBlob =
+        shouldKeepAudio && currentSegmentChunksRef.current.length
+          ? new Blob(currentSegmentChunksRef.current, { type: supportedMimeType })
+          : null;
+      const shouldRestart = isRotatingSegmentRef.current;
+
+      currentSegmentChunksRef.current = [];
+      isRotatingSegmentRef.current = false;
+
+      if (segmentBlob) {
+        emitAudioSegment(segmentBlob, supportedMimeType);
+      }
+
+      if (shouldRestart && shouldContinueRecordingRef.current && streamRef.current) {
+        const nextRecorder = createRecorder(streamRef.current, supportedMimeType);
+
+        mediaRecorderRef.current = nextRecorder;
+        nextRecorder.start();
+        scheduleSegmentRotation();
+        return;
+      }
+
+      const blob =
+        shouldKeepAudio && chunksRef.current.length
+          ? new Blob(chunksRef.current, { type: supportedMimeType })
+          : null;
+
+      chunksRef.current = [];
+      setAudioBlob(blob);
+      finishRecording(blob);
+    };
+
+    return recorder;
+  }
+
+  function scheduleSegmentRotation() {
+    clearSegmentTimer();
+    segmentTimeoutRef.current = window.setTimeout(() => {
+      const recorder = mediaRecorderRef.current;
+
+      if (!recorder || recorder.state !== "recording") {
+        return;
+      }
+
+      isRotatingSegmentRef.current = true;
+      recorder.stop();
+    }, AUTO_TRANSCRIBE_INTERVAL_SECONDS * 1000);
   }
 
   function startRecordingTimer() {
@@ -128,6 +226,8 @@ export function useAudioRecorder({
     onError(null);
     onNotice(null);
     setAudioBlob(null);
+    chunksRef.current = [];
+    currentSegmentChunksRef.current = [];
 
     if (!navigator.mediaDevices?.getUserMedia) {
       onNotice("当前浏览器不支持网页录音，请使用手动输入或换用 Chrome / Safari。");
@@ -148,53 +248,24 @@ export function useAudioRecorder({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
       const sessionId = crypto.randomUUID();
+      const recorder = createRecorder(stream, supportedMimeType);
 
       chunksRef.current = [];
+      currentSegmentChunksRef.current = [];
       segmentIndexRef.current = 0;
       sessionIdRef.current = sessionId;
+      shouldContinueRecordingRef.current = true;
       stopReasonRef.current = "manual";
       streamRef.current = stream;
       mediaRecorderRef.current = recorder;
       setMimeType(supportedMimeType);
       onSessionStart?.(sessionId);
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-          segmentIndexRef.current += 1;
-          onAudioSegment?.({
-            blob: event.data,
-            elapsedSeconds: elapsedSecondsRef.current,
-            mimeType: supportedMimeType,
-            segmentId: `segment-${segmentIndexRef.current}`,
-            sessionId,
-          });
-        }
-      };
-
-      recorder.onerror = () => {
-        stopReasonRef.current = "error";
-        onError("录音失败，请检查麦克风设备，或改用手动输入。");
-        finishRecording(null);
-      };
-
-      recorder.onstop = () => {
-        const shouldKeepAudio = stopReasonRef.current !== "cancel";
-        const blob =
-          shouldKeepAudio && chunksRef.current.length
-            ? new Blob(chunksRef.current, { type: supportedMimeType })
-            : null;
-
-        chunksRef.current = [];
-        setAudioBlob(blob);
-        finishRecording(blob);
-      };
-
-      recorder.start(AUTO_TRANSCRIBE_INTERVAL_SECONDS * 1000);
+      recorder.start();
       setIsRecording(true);
       startRecordingTimer();
+      scheduleSegmentRotation();
     } catch (error) {
       stopTracks(streamRef.current);
       streamRef.current = null;
@@ -212,11 +283,24 @@ export function useAudioRecorder({
     const recorder = mediaRecorderRef.current;
 
     if (!recorder || recorder.state === "inactive") {
+      if (isRotatingSegmentRef.current) {
+        shouldContinueRecordingRef.current = false;
+        stopReasonRef.current = reason;
+        clearRecordingTimer();
+        clearSegmentTimer();
+
+        return new Promise<Blob | null>((resolve) => {
+          stopResolverRef.current = resolve;
+        });
+      }
+
       return Promise.resolve(audioBlob);
     }
 
+    shouldContinueRecordingRef.current = false;
     stopReasonRef.current = reason;
     clearRecordingTimer();
+    clearSegmentTimer();
 
     return new Promise<Blob | null>((resolve) => {
       stopResolverRef.current = resolve;
@@ -227,6 +311,7 @@ export function useAudioRecorder({
   async function cancelRecording() {
     setAudioBlob(null);
     chunksRef.current = [];
+    currentSegmentChunksRef.current = [];
     sessionIdRef.current = null;
     await stopRecording("cancel");
     setElapsedSeconds(0);
@@ -242,6 +327,7 @@ export function useAudioRecorder({
 
     setAudioBlob(null);
     chunksRef.current = [];
+    currentSegmentChunksRef.current = [];
     sessionIdRef.current = null;
     setElapsedSeconds(0);
     elapsedSecondsRef.current = 0;
@@ -252,7 +338,9 @@ export function useAudioRecorder({
   useEffect(() => {
     return () => {
       clearRecordingTimer();
+      clearSegmentTimer();
       stopTracks(streamRef.current);
+      shouldContinueRecordingRef.current = false;
       mediaRecorderRef.current?.stop();
       mediaRecorderRef.current = null;
     };
