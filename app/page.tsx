@@ -840,19 +840,19 @@ export default function HomePage() {
       <span aria-hidden="true" className="twinkle-star left-[12%] top-[42%]" />
       <span aria-hidden="true" className="twinkle-star left-[88%] top-[61%]" />
       <header className="sticky top-0 z-10 -mx-3 px-3 py-2 backdrop-blur-sm sm:-mx-4 sm:px-4">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 sm:gap-3">
           <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
             <CompanionMark />
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color-mix(in_srgb,var(--primary)_72%,transparent)] sm:text-xs sm:tracking-[0.2em]">
                 Internsheep
               </p>
-              <p className="mt-0.5 max-w-[13rem] truncate text-xs text-[var(--muted-foreground)] sm:mt-1 sm:max-w-none sm:text-sm">
-                把今天的小事，慢慢养成成长的星图
+              <p className="mt-0.5 max-w-[8.8rem] truncate text-xs text-[var(--muted-foreground)] sm:mt-1 sm:max-w-none sm:text-sm">
+                出发吧，见习小羊！
               </p>
             </div>
           </div>
-          <div className="flex justify-end sm:block">
+          <div className="shrink-0">
             <RoleSwitcher role={role} onSwitchRole={switchRole} />
           </div>
         </div>
