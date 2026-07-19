@@ -251,13 +251,15 @@ export async function transcribeWithTencent({
     secretKey: config.secretKey,
   });
   const requestUrl = `https://${TENCENT_FLASH_HOST}${path}?${query}`;
+  const audioBuffer = Buffer.from(await audio.arrayBuffer());
   let response: Response;
 
   try {
     response = await fetch(requestUrl, {
-      body: Buffer.from(await audio.arrayBuffer()),
+      body: audioBuffer,
       headers: {
         Authorization: signature,
+        "Content-Length": String(audioBuffer.length),
         "Content-Type": "application/octet-stream",
         "X-Tencent-Region": config.region,
       },
