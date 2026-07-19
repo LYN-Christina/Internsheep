@@ -31,6 +31,10 @@ import type {
   Settings,
   Task,
 } from "@/types";
+import {
+  convertAudioBlobToTencentWav,
+  shouldConvertToTencentWav,
+} from "@/utils/audioTranscode";
 import { getCurrentWeekRange, getTodayISO } from "@/utils/date";
 
 const manualCategories: Record<Role, string[]> = {
@@ -132,7 +136,7 @@ export default function HomePage() {
   const [weeklyReportNotice, setWeeklyReportNotice] = useState<string | null>(null);
   const {
     audioBlob,
-    cancelRecording,
+    clearRecordedAudio,
     elapsedSeconds: recordingElapsedSeconds,
     isRecording,
     mimeType: recordingMimeType,
@@ -442,9 +446,34 @@ export default function HomePage() {
     }
   }
 
-  function cancelCurrentRecording() {
-    cancelRecording();
-    setDraftResult(null);
+  function handleClearInput() {
+    if (isRecording) {
+      setErrorMessage("请先停止录音，再清空输入内容。");
+      return;
+    }
+
+    const hasInputContent =
+      Boolean(audioBlob) ||
+      Boolean(recordingMimeType) ||
+      recordingElapsedSeconds > 0 ||
+      inputText.trim().length > 0 ||
+      Boolean(errorMessage) ||
+      Boolean(recordingNotice);
+
+    if (!hasInputContent) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "确定清空当前录音和文本输入吗？AI 提取草稿和已保存任务不会被删除。",
+      )
+    ) {
+      return;
+    }
+
+    clearRecordedAudio();
+    setInputText("");
     setRecordingNotice(null);
     setErrorMessage(null);
   }
@@ -525,14 +554,6 @@ export default function HomePage() {
       return;
     }
 
-    if (audioBlob.size > MAX_AUDIO_UPLOAD_BYTES) {
-      setErrorMessage(
-        "录音文件过大，可能超过部署平台上传限制。建议长会议分段记录，或先手动输入会议内容。",
-      );
-      setRecordingNotice("音频仍已保留。你可以取消后重新分段录音，或直接手动输入。");
-      return;
-    }
-
     if (!canUseAudioTranscription) {
       setErrorMessage("今日免费语音转文字次数已用完。你可以直接手动输入或粘贴会议内容。");
       setRecordingNotice("音频仍已保留。你可以明天继续转写，或直接手动输入 / 粘贴会议内容。");
@@ -543,11 +564,34 @@ export default function HomePage() {
     setRecordingNotice("正在转写录音，请稍等…");
 
     try {
+      const originalMimeType = recordingMimeType ?? audioBlob.type;
+      const shouldConvertAudio = shouldConvertToTencentWav(
+        originalMimeType,
+        getAudioFileName(originalMimeType),
+      );
+
+      if (shouldConvertAudio) {
+        setRecordingNotice("当前手机录音格式需要转换，正在转成腾讯云可识别的 WAV 音频…");
+      }
+
+      const audioForUpload = shouldConvertAudio
+        ? await convertAudioBlobToTencentWav(audioBlob)
+        : audioBlob;
+      const uploadMimeType = shouldConvertAudio ? "audio/wav" : originalMimeType;
+
+      if (audioForUpload.size > MAX_AUDIO_UPLOAD_BYTES) {
+        setErrorMessage(
+          "转换后的录音文件较大，建议缩短录音或按 1-2 分钟分段记录。",
+        );
+        setRecordingNotice("音频仍已保留。你可以取消后重新分段录音，或直接手动输入。");
+        return;
+      }
+
       const formData = new FormData();
       formData.append(
         "audio",
-        audioBlob,
-        getAudioFileName(recordingMimeType ?? audioBlob.type),
+        audioForUpload,
+        getAudioFileName(uploadMimeType),
       );
 
       const response = await fetch("/api/ai/transcribe-audio", {
@@ -631,6 +675,16 @@ export default function HomePage() {
         <RecordingNotesPageV2
           draftResult={draftResult}
           inputText={inputText}
+          canClearInput={
+            !isRecording &&
+            !isTranscribing &&
+            (Boolean(audioBlob) ||
+              Boolean(recordingMimeType) ||
+              recordingElapsedSeconds > 0 ||
+              inputText.trim().length > 0 ||
+              Boolean(errorMessage) ||
+              Boolean(recordingNotice))
+          }
           hasRecordedAudio={Boolean(audioBlob)}
           isExtracting={isExtracting}
           isRecording={isRecording}
@@ -642,7 +696,7 @@ export default function HomePage() {
           remainingAudioTranscription={remainingAudioTranscription}
           remainingTaskExtraction={remainingTaskExtraction}
           role={role}
-          onCancelRecording={cancelCurrentRecording}
+          onClearInput={handleClearInput}
           onAddDraftTask={addDraftTask}
           onExtract={extractTasks}
           onInputTextChange={setInputText}

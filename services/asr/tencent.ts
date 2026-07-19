@@ -71,21 +71,6 @@ function getVoiceFormat(mimeType = "", fileName = "") {
   }
 
   if (
-    normalizedMimeType.includes("mp4") ||
-    normalizedFileName.endsWith(".mp4") ||
-    normalizedFileName.endsWith(".m4a")
-  ) {
-    return "m4a";
-  }
-
-  if (
-    normalizedMimeType.includes("aac") ||
-    normalizedFileName.endsWith(".aac")
-  ) {
-    return "aac";
-  }
-
-  if (
     normalizedMimeType.includes("ogg") ||
     normalizedFileName.endsWith(".ogg") ||
     normalizedFileName.endsWith(".opus")

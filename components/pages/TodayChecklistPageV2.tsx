@@ -12,6 +12,12 @@ const roleDescriptions = {
   student: "整理学习任务，把课程、作业和项目分开处理。",
 };
 
+const priorityLabels = {
+  high: "高优先级",
+  medium: "中优先级",
+  low: "低优先级",
+};
+
 function formatOriginalDate(date?: string) {
   if (!date) {
     return "未设置日期";
@@ -56,10 +62,10 @@ function TaskCard({
           : "border-[var(--border)]"
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-2.5">
         <input
           checked={task.status === "done"}
-          className="mt-2"
+          className="mt-2 size-4 shrink-0"
           type="checkbox"
           onChange={(event) =>
             onUpdateTask(task.id, {
@@ -68,31 +74,46 @@ function TaskCard({
           }
         />
         <div className="min-w-0 flex-1">
-          {variant === "overdue" ? (
-            <p className="mb-1 text-xs text-orange-700">
-              原日期：{formatOriginalDate(task.dueDate)}
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              {variant === "overdue" ? (
+                <p className="mb-0.5 text-xs text-orange-700">
+                  原日期：{formatOriginalDate(task.dueDate)}
+                </p>
+              ) : null}
+              <input
+                className={`w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-medium leading-6 focus:border-[var(--border)] ${
+                  task.status === "done"
+                    ? "line-through text-[var(--muted-foreground)]"
+                    : ""
+                }`}
+                value={task.title}
+                onChange={(event) => onUpdateTask(task.id, { title: event.target.value })}
+              />
+            </div>
+            <Button
+              aria-label="删除任务"
+              className="size-9 shrink-0 text-[var(--muted-foreground)]"
+              size="icon"
+              type="button"
+              variant="ghost"
+              onClick={() => onDeleteTask(task.id)}
+            >
+              <Trash2 aria-hidden="true" className="size-4" />
+            </Button>
+          </div>
+          <div className="mt-0.5 px-1">
+            <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+              {task.category} · {priorityLabels[task.priority]}
             </p>
-          ) : null}
-          <input
-            className={`w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm font-medium focus:border-[var(--border)] ${
-              task.status === "done"
-                ? "line-through text-[var(--muted-foreground)]"
-                : ""
-            }`}
-            value={task.title}
-            onChange={(event) => onUpdateTask(task.id, { title: event.target.value })}
-          />
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-            {task.category} · {task.priority} · {task.source}
-          </p>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-            {formatDueDisplay(task)}
-          </p>
+            <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+              {formatDueDisplay(task)}
+            </p>
+          </div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
-        {variant === "overdue" ? (
-          <>
+      {variant === "overdue" ? (
+        <div className="mt-2 flex flex-wrap gap-1.5 pl-6 sm:mt-3 sm:gap-2">
             <Button
               size="sm"
               type="button"
@@ -119,18 +140,8 @@ function TaskCard({
             >
               放弃
             </Button>
-          </>
-        ) : null}
-        <Button
-          aria-label="删除任务"
-          size="icon"
-          type="button"
-          variant="ghost"
-          onClick={() => onDeleteTask(task.id)}
-        >
-          <Trash2 aria-hidden="true" className="size-4" />
-        </Button>
-      </div>
+        </div>
+      ) : null}
     </article>
   );
 }

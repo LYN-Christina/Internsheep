@@ -38,7 +38,8 @@ export interface RecordingNotesPageProps {
   isUsingUserApiKey: boolean;
   remainingAudioTranscription: number;
   remainingTaskExtraction: number;
-  onCancelRecording: () => void;
+  canClearInput: boolean;
+  onClearInput: () => void;
   onAddDraftTask: () => void;
   onInputTextChange: (value: string) => void;
   onStartRecording: () => void;

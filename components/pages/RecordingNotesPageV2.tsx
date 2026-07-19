@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { formatRecordingTime } from "@/hooks/useAudioRecorder";
 import type { RecordingNotesPageProps } from "@/lib/page-types";
 import type { TaskPriority } from "@/types";
+import { shouldConvertToTencentWav } from "@/utils/audioTranscode";
 
 const categoriesByRole = {
   intern: ["项目", "会议", "文档", "学习", "其他"],
@@ -12,6 +13,7 @@ const categoriesByRole = {
 };
 
 export function RecordingNotesPageV2({
+  canClearInput,
   draftResult,
   inputText,
   isExtracting,
@@ -20,7 +22,7 @@ export function RecordingNotesPageV2({
   isUsingUserApiKey,
   hasRecordedAudio,
   onAddDraftTask,
-  onCancelRecording,
+  onClearInput,
   onExtract,
   onInputTextChange,
   onSaveSelectedDraftTasks,
@@ -38,6 +40,9 @@ export function RecordingNotesPageV2({
   const usageMessage = isUsingUserApiKey
     ? `当前使用自用 API Key，AI 提取不占用免费额度。语音转文字今日还可用 ${remainingAudioTranscription} 次。`
     : `免费体验：语音转文字今日还可用 ${remainingAudioTranscription} 次；AI 提取今日还可用 ${remainingTaskExtraction} 次。`;
+  const needsFormatConversion = recordingMimeType
+    ? shouldConvertToTencentWav(recordingMimeType)
+    : false;
   const isWebmRecording = recordingMimeType?.includes("webm") ?? false;
 
   return (
@@ -76,12 +81,13 @@ export function RecordingNotesPageV2({
             停止录音
           </Button>
           <Button
-            disabled={!isRecording && !hasRecordedAudio}
+            disabled={!canClearInput}
             type="button"
             variant="ghost"
-            onClick={onCancelRecording}
+            onClick={onClearInput}
           >
-            取消
+            <span className="sm:hidden">清空</span>
+            <span className="hidden sm:inline">清空输入</span>
           </Button>
           <Button
             disabled={!hasRecordedAudio || isRecording || isTranscribing}
@@ -95,7 +101,7 @@ export function RecordingNotesPageV2({
             />
             {isTranscribing ? "转写中" : "转写录音"}
           </Button>
-          <Button disabled={isExtracting} type="button" onClick={onExtract}>
+          <Button className="col-span-2 sm:col-span-1" disabled={isExtracting} type="button" onClick={onExtract}>
             <RefreshCw
               aria-hidden="true"
               className={isExtracting ? "size-4 animate-spin" : "size-4"}
@@ -109,6 +115,9 @@ export function RecordingNotesPageV2({
         {hasRecordedAudio ? (
           <p className="mt-2 text-xs text-[var(--muted-foreground)] sm:text-sm">
             音频已录制{recordingMimeType ? `（${recordingMimeType}）` : ""}，可点击“转写录音”。长会议建议分段记录。
+            {needsFormatConversion
+              ? " 当前格式会在转写前转换为 WAV，转换后文件会变大，建议按 1-2 分钟分段。"
+              : ""}
             {isWebmRecording
               ? " 当前格式可能不被腾讯云极速识别支持，转写失败时请改用手动输入或换手机自带浏览器。"
               : ""}
@@ -157,7 +166,7 @@ export function RecordingNotesPageV2({
             <>
               {draftResult.tasks.map((task) => (
                 <article
-                  className="rounded-md border border-[var(--border)] p-3"
+                  className="rounded-md border border-[var(--border)] p-2.5 sm:p-3"
                   key={task.id}
                 >
                   <div className="flex items-center gap-2">
@@ -204,34 +213,35 @@ export function RecordingNotesPageV2({
                       <option value="low">低</option>
                     </select>
                   </div>
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-                      截止日期
-                      <input
-                        className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
-                        type="date"
-                        value={task.dueDate ?? ""}
-                        onChange={(event) =>
-                          onUpdateDraft(task.id, {
-                            dueDate: event.target.value || undefined,
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-                      截止时间
-                      <input
-                        className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
-                        type="time"
-                        value={task.dueTime ?? ""}
-                        onChange={(event) =>
-                          onUpdateDraft(task.id, {
-                            dueTime: event.target.value || undefined,
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                    <div className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                      <span>截止时间</span>
+                      <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(5.75rem,0.75fr)] gap-2">
+                        <input
+                          aria-label="截止日期"
+                          className="h-9 min-w-0 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
+                          type="date"
+                          value={task.dueDate ?? ""}
+                          onChange={(event) =>
+                            onUpdateDraft(task.id, {
+                              dueDate: event.target.value || undefined,
+                            })
+                          }
+                        />
+                        <input
+                          aria-label="截止时间"
+                          className="h-9 min-w-0 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
+                          type="time"
+                          value={task.dueTime ?? ""}
+                          onChange={(event) =>
+                            onUpdateDraft(task.id, {
+                              dueTime: event.target.value || undefined,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <label className="flex flex-col gap-1 text-[11px] text-[var(--muted-foreground)]">
                       原始时间描述
                       <input
                         className="h-9 rounded border border-[var(--border)] px-2 text-sm text-[var(--foreground)]"
@@ -248,12 +258,12 @@ export function RecordingNotesPageV2({
                   </div>
                   {task.dueDate || task.dueTime || task.dueText ? (
                     task.uncertainReason ? (
-                      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)] opacity-80">
                         时间识别提示：{task.uncertainReason}
                       </p>
                     ) : null
                   ) : (
-                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--muted-foreground)] opacity-80">
                       未识别到明确截止时间，可手动补充。
                     </p>
                   )}

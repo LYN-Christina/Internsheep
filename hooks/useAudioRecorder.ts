@@ -202,6 +202,18 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
     onNotice(null);
   }
 
+  function clearRecordedAudio() {
+    if (isRecording) {
+      return;
+    }
+
+    setAudioBlob(null);
+    chunksRef.current = [];
+    setElapsedSeconds(0);
+    setMimeType(null);
+    onNotice(null);
+  }
+
   useEffect(() => {
     return () => {
       clearRecordingTimer();
@@ -214,6 +226,7 @@ export function useAudioRecorder({ onError, onNotice }: UseAudioRecorderOptions)
   return {
     audioBlob,
     cancelRecording,
+    clearRecordedAudio,
     elapsedSeconds,
     isRecording,
     mimeType,
